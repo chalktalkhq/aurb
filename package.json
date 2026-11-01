@@ -1,0 +1,32 @@
+{
+  "name": "aurb",
+  "version": "0.1.0",
+  "description": "Animated orbs for AI products: multi-state, smooth transitions, under 4 KB, and it never blocks your page.",
+  "keywords": ["orb", "blob", "ai", "assistant", "animation", "web-component", "voice-ui", "siri", "loading", "react"],
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": ["./dist/aurb.js", "./dist/aurb.global.js", "./dist/react.js"],
+  "main": "./dist/aurb.js",
+  "module": "./dist/aurb.js",
+  "types": "./dist/aurb.d.ts",
+  "exports": {
+    ".": { "types": "./dist/aurb.d.ts", "default": "./dist/aurb.js" },
+    "./react": { "types": "./dist/react.d.ts", "default": "./dist/react.js" },
+    "./global": "./dist/aurb.global.js",
+    "./package.json": "./package.json"
+  },
+  "bin": { "aurb": "cli/aurb.mjs" },
+  "files": ["dist", "cli", "assets"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node test/browser.mjs",
+    "prepublishOnly": "npm test"
+  },
+  "peerDependencies": { "react": ">=18" },
+  "peerDependenciesMeta": { "react": { "optional": true } },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "esbuild": "^0.28.2"
+  }
+}

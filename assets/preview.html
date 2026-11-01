@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__NAME__ - aurb</title>
+<script src="./aurb.global.js"></script>
+<style>
+  :root { --bg: #f5f5f3; --fg: #1f1f1d; --muted: #6b6b66; --line: #dcdcd7; --chip: #ececE8; }
+  html.dark { --bg: #191919; --fg: #e6e6e6; --muted: #a0a0a0; --line: #333; --chip: #2a2a2a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; gap: 28px; padding: 40px 16px; }
+  h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+  button { min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--fg); font: inherit; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .label { color: var(--muted); font-size: 12px; min-width: 64px; }
+  .sizes { display: flex; gap: 36px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+  .panel { padding: 20px; border-radius: 10px; background: var(--chip); }
+  .note { color: var(--muted); font-size: 12px; max-width: 64ch; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>__NAME__</h1>
+  <aurb-orb id="main" src="." sizes="__SIZES__" loading="eager" state="idle" style="width:240px"></aurb-orb>
+  <div class="row" id="states"><span class="label">State</span></div>
+  <div class="row"><span class="label">Page theme</span><button data-theme-set="dark">Dark</button><button data-theme-set="light">Light</button></div>
+  <div class="row" id="speeds"><span class="label">Transition</span></div>
+  <div class="sizes" id="small"></div>
+  <p class="note" id="weight"></p>
+<script>
+  const STATES = __STATES__, KB = __KB__, SIZES = "__SIZES__".split(",").map(Number);
+  const orbs = () => document.querySelectorAll("aurb-orb");
+  const statesEl = document.getElementById("states");
+  for (const s of STATES) {
+    const b = document.createElement("button");
+    b.textContent = s;
+    b.dataset.state = s;
+    b.onclick = () => { orbs().forEach((o) => { o.state = s; }); mark(); };
+    statesEl.append(b);
+  }
+  for (const ms of [250, 500, 900]) {
+    const b = document.createElement("button");
+    b.textContent = ms + " ms";
+    b.dataset.ms = ms;
+    b.onclick = () => { orbs().forEach((o) => o.setAttribute("transition", ms)); document.querySelectorAll("[data-ms]").forEach((x) => x.setAttribute("aria-pressed", x === b)); };
+    document.getElementById("speeds").append(b);
+    if (ms === 500) b.setAttribute("aria-pressed", "true");
+  }
+  // The sizes it is really used at, on the plain page and on a panel of a different colour.
+  const small = document.getElementById("small");
+  for (const [px, panel] of [[160, false], [80, false], [40, false], [80, true]]) {
+    const f = document.createElement("figure");
+    const host = panel ? Object.assign(document.createElement("div"), { className: "panel" }) : f;
+    const o = document.createElement("aurb-orb");
+    o.setAttribute("src", ".");
+    o.setAttribute("sizes", SIZES.join(","));
+    o.setAttribute("loading", "eager");
+    o.style.width = px + "px";
+    host.append(o);
+    if (panel) f.append(host);
+    f.append(`${px}px${panel ? " on a panel" : ""}`);
+    small.append(f);
+  }
+  function mark() {
+    const cur = document.getElementById("main").state;
+    document.querySelectorAll("[data-state]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.state === cur));
+    const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    document.querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.themeSet === theme));
+    const line = SIZES.map((s) => `At ${s}px: first load ${(KB[`idle-${theme}-${s}.webm`] || 0) + (KB[`poster-${theme}-${s}.jpg`] || 0)} KB${STATES.length > 1 ? ", " + STATES.filter((x) => x !== "idle").map((x) => `${x} ${KB[`${x}-${theme}-${s}.webm`] ?? "?"} KB`).join(", ") : ""}`).join(". ");
+    document.getElementById("weight").textContent = line + ".";
+  }
+  document.querySelectorAll("[data-theme-set]").forEach((b) => {
+    b.onclick = () => { document.documentElement.className = b.dataset.themeSet; mark(); };
+  });
+  document.documentElement.className = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  mark();
+</script>
+</body>
+</html>

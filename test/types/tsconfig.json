@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": false,
+    "jsx": "react-jsx",
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["es2022", "dom"],
+    "types": [],
+    "paths": {
+      "aurb": ["../../dist/aurb.d.ts"],
+      "aurb/react": ["../../dist/react.d.ts"],
+      "aurb/prefetch": ["../../dist/prefetch.d.ts"],
+      "aurb/global": ["../../dist/global.d.ts"]
+    }
+  },
+  "include": ["*.tsx", "*.ts"]
+}

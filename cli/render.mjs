@@ -175,12 +175,12 @@ export function makeDither(size) {
 
 export function renderFrame(t, stateName, theme, cfg, dither) {
   const S = cfg.size;
-  const st = { energy: 1, flow: 0, flowN: 1, orbit: 0, orbitN: 1, sweep: 0, sweepN: 1, pulse: 0, pulseN: [1, 1], breathe: 0, breatheN: 1, rim: 1, rimBeat: 0, rimBeatN: 1, coreBeat: 0, coreBeatN: 1, ...STATES[stateName] };
+  const st = { energy: 1, flow: 0, flowN: 1, orbit: 0, orbitN: 1, sweep: 0, sweepN: 1, pulse: 0, pulseN: [1, 1], breathe: 0, breatheN: 1, rim: 1, rimBeat: 0, rimBeatN: 1, coreBeat: 0, coreBeatN: 1, ...STATES[stateName], ...cfg.customStates?.[stateName] };
   const style = STYLES[cfg.style][theme];
   const LIGHT = theme === "dark" ? [-0.58, 0.68, 0.45] : [0.58, -0.68, 0.45];
   const override = cfg.stateColors[stateName];
   const tintHex = override === "none" ? undefined : override ?? st.tint;
-  const ramp = rampFor(tintHex ? [tintHex] : cfg.colors, theme);
+  const ramp = rampFor(tintHex ? [tintHex] : (theme === "dark" ? cfg.colorsDark : cfg.colorsLight) ?? cfg.colors, theme);
 
   // Whole numbers only, or the loop would not close.
   const speed = (n) => Math.max(1, Math.round(n * cfg.speed));

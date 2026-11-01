@@ -1,0 +1,3 @@
+# A CRLF shebang breaks the aurb command on Linux and macOS, so never convert line endings.
+* text=auto eol=lf
+*.png binary

@@ -9,24 +9,38 @@
   "main": "./dist/aurb.js",
   "module": "./dist/aurb.js",
   "types": "./dist/aurb.d.ts",
+  "unpkg": "./dist/aurb.global.js",
+  "jsdelivr": "./dist/aurb.global.js",
   "exports": {
     ".": { "types": "./dist/aurb.d.ts", "default": "./dist/aurb.js" },
     "./react": { "types": "./dist/react.d.ts", "default": "./dist/react.js" },
-    "./global": "./dist/aurb.global.js",
+    "./prefetch": { "types": "./dist/prefetch.d.ts", "default": "./dist/prefetch.js" },
+    "./global": { "types": "./dist/global.d.ts", "default": "./dist/aurb.global.js" },
     "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "react": ["./dist/react.d.ts"],
+      "prefetch": ["./dist/prefetch.d.ts"],
+      "global": ["./dist/global.d.ts"]
+    }
   },
   "bin": { "aurb": "cli/aurb.mjs" },
   "files": ["dist", "cli", "assets"],
   "engines": { "node": ">=18" },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node scripts/build.mjs && node test/browser.mjs",
+    "test": "node scripts/build.mjs && tsc -p test/types && node test/browser.mjs",
     "prepublishOnly": "npm test"
   },
-  "peerDependencies": { "react": ">=18" },
-  "peerDependenciesMeta": { "react": { "optional": true } },
+  "peerDependencies": { "@types/react": ">=18", "react": ">=18" },
+  "peerDependenciesMeta": { "@types/react": { "optional": true }, "react": { "optional": true } },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "esbuild": "^0.28.2"
+    "@types/react": "^19.0.0",
+    "esbuild": "^0.28.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.9.0"
   }
 }

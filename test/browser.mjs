@@ -1,6 +1,6 @@
 // End-to-end: renders a real orb, serves it over HTTP, and checks behaviour and exactly which bytes
 // get downloaded in a real browser. Run with: npm test
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -14,6 +14,7 @@ const folderName = fs.readdirSync(root).find((f) => f.startsWith("chalk-"));
 const blob = path.join(root, folderName);
 fs.copyFileSync("dist/aurb.global.js", path.join(root, "aurb.global.js"));
 
+let served = {}; // bytes actually sent per file, as no cache headers are set: the worst case
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mp4": "video/mp4", ".webm": "video/webm", ".jpg": "image/jpeg", ".json": "application/json" };
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
@@ -22,6 +23,8 @@ const server = http.createServer((req, res) => {
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
   const size = fs.statSync(file).size, type = TYPES[path.extname(file)] ?? "application/octet-stream";
   const range = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? "");
+  const sent = range ? (range[2] ? Number(range[2]) : size - 1) - Number(range[1]) + 1 : size;
+  served[path.basename(file)] = (served[path.basename(file)] ?? 0) + sent;
   if (range) {
     const start = Number(range[1]), end = range[2] ? Number(range[2]) : size - 1;
     res.writeHead(206, { "content-type": type, "content-range": `bytes ${start}-${end}/${size}`, "accept-ranges": "bytes", "content-length": end - start + 1 });
@@ -212,6 +215,212 @@ for (const theme of ["dark", "light"]) {
   const long = await page.evaluate(() => window.__long);
   check("no long main-thread stalls", long.filter((d) => d > 200).length === 0, `longest ${Math.max(0, ...long)}ms`);
   check("no script errors", errors.length === 0, errors[0] ?? "");
+  await ctx.close();
+}
+
+console.log("\n-- Audit findings: each of these failed before it was fixed --");
+const settled = (page, id = "o") => page.waitForFunction((id) => [...document.getElementById(id).shadowRoot.querySelectorAll("video")].some((v) => getComputedStyle(v).opacity === "1"), id, { timeout: 15000 });
+{
+  // Was 31%: the picture showed through when a state changed during a fade.
+  const { ctx, page } = await open(`<aurb-orb id="o" hold="0" loading="eager" src="${src}" style="width:240px"></aurb-orb>`);
+  await settled(page);
+  const r = await page.evaluate(async () => {
+    const e = document.getElementById("o");
+    const [a, b] = e.shadowRoot.querySelectorAll("video");
+    let low = 1, stop = false;
+    const tick = () => { low = Math.min(low, 1 - (1 - +getComputedStyle(a).opacity) * (1 - +getComputedStyle(b).opacity)); if (!stop) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    e.state = "thinking";
+    await new Promise((r) => e.addEventListener("aurbstatechange", r, { once: true }));
+    await new Promise((r) => setTimeout(r, 180));
+    e.state = "working";
+    await new Promise((r) => setTimeout(r, 1800));
+    stop = true;
+    return { low, state: e.state, file: decodeURI([a, b].find((v) => getComputedStyle(v).opacity === "1").currentSrc).split("/").pop() };
+  });
+  check("a switch during a fade leaves no hole in the picture", r.low > 0.995, `lowest coverage ${(r.low * 100).toFixed(0)}%`);
+  check("and still arrives at the newest state", r.file === "working-dark-320.webm", r.file);
+  await ctx.close();
+}
+{
+  // Was 2.00x: prefetch downloaded the file twice on a host with no cache headers.
+  served = {};
+  const { ctx, page } = await open(`<aurb-orb id="o" prefetch="thinking" src="${src}" style="width:120px"></aurb-orb>`);
+  await settled(page);
+  await page.waitForTimeout(1200);
+  const ms = await page.evaluate(() => new Promise((res) => { const e = document.getElementById("o"), t = performance.now(); e.addEventListener("aurbstatechange", () => res(performance.now() - t), { once: true }); e.state = "thinking"; }));
+  await page.waitForTimeout(300);
+  const size = fs.statSync(path.join(blob, "thinking-dark-160.webm")).size;
+  check("prefetch downloads a file once, with no cache headers", served["thinking-dark-160.webm"] === size, `${(served["thinking-dark-160.webm"] / size).toFixed(2)}x`);
+  check("a prefetched switch is fast", ms < 200, `${Math.round(ms)}ms`);
+  await ctx.close();
+}
+{
+  // Was downloading both copies: blocked autoplay was mistaken for a broken codec.
+  served = {};
+  const { ctx, page } = await open(`<aurb-orb id="o" loading="eager" src="${src}" style="width:120px"></aurb-orb>`, { init: () => { HTMLMediaElement.prototype.play = function () { return Promise.reject(new DOMException("blocked", "NotAllowedError")); }; window.__errs = []; addEventListener("DOMContentLoaded", () => document.getElementById("o").addEventListener("aurberror", (e) => window.__errs.push(e.detail.reason))); } });
+  await page.waitForTimeout(1500);
+  const vids = Object.keys(served).filter((k) => /\.(mp4|webm)$/.test(k));
+  check("blocked autoplay downloads no second copy", vids.length === 1, vids.join(", "));
+  check("blocked autoplay is reported, not hidden", (await page.evaluate(() => window.__errs))[0] === "blocked");
+  await ctx.close();
+}
+{
+  // Was stuck on the 160px file at 600px.
+  const { ctx, page } = await open(`<aurb-orb id="o" src="${src}" style="width:40px"></aurb-orb>`);
+  await settled(page);
+  await page.evaluate(() => { document.getElementById("o").style.width = "600px"; });
+  await page.waitForTimeout(1400);
+  const st = await status(page);
+  check("growing an orb moves it to a sharper file", st.file === "idle-dark-320.webm", st.file);
+  await page.evaluate(() => { document.getElementById("o").style.width = "40px"; });
+  await page.waitForTimeout(900);
+  check("shrinking keeps the file already downloaded", (await status(page)).file === "idle-dark-320.webm");
+  await ctx.close();
+}
+{
+  // Was +100 listeners per 100 switches.
+  const { ctx, page } = await open(`<aurb-orb id="o" hold="0" transition="20" loading="eager" src="${src}" style="width:120px"></aurb-orb>`);
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send("Performance.enable");
+  await settled(page);
+  const count = async () => { await cdp.send("HeapProfiler.collectGarbage"); await page.waitForTimeout(300); return (await cdp.send("Performance.getMetrics")).metrics.find((m) => m.name === "JSEventListeners").value; };
+  const before = await count();
+  await page.evaluate(async () => { const e = document.getElementById("o"); for (let i = 0; i < 40; i++) { await new Promise((res) => { e.addEventListener("aurbstatechange", res, { once: true }); e.state = i % 2 ? "idle" : "thinking"; setTimeout(res, 1000); }); await new Promise((r) => setTimeout(r, 90)); } });
+  const after = await count();
+  check("no listeners left behind by 40 switches", after - before <= 2, `+${after - before}`);
+  await ctx.close();
+}
+{
+  // Was 8 ms per change with 30 orbs, because every orb re-read its ancestors' colours.
+  const { ctx, page } = await open(`<aurb-orb id="o" static src="${src}" style="width:80px"></aurb-orb>`.repeat(5));
+  await page.waitForTimeout(700);
+  const calls = await page.evaluate(async () => {
+    let n = 0; const real = window.getComputedStyle;
+    window.getComputedStyle = (...a) => { n++; return real.apply(window, a); };
+    document.body.style.overflow = "hidden";
+    document.body.classList.add("modal-open");
+    document.documentElement.classList.add("scroll-lock");
+    await new Promise((r) => setTimeout(r, 500));
+    return n;
+  });
+  check("unrelated page changes cost the orbs nothing", calls === 0, `${calls} style reads`);
+  await ctx.close();
+}
+{
+  // Was a silent 404.
+  const { ctx, page } = await open(`<aurb-orb id="o" loading="eager" src="${src}" style="width:120px"></aurb-orb>`);
+  const logs = [];
+  page.on("console", (m) => { if (m.type() === "warning") logs.push(m.text()); });
+  await settled(page);
+  await page.evaluate(() => { document.getElementById("o").state = "running"; });
+  await page.waitForTimeout(1100);
+  check("CLI aliases work on the element too", (await status(page)).file === "working-dark-160.webm", (await status(page)).file);
+  const reason = await page.evaluate(() => new Promise((res) => { const e = document.getElementById("o"); e.addEventListener("aurberror", (x) => res(x.detail.reason), { once: true }); e.state = "nope"; setTimeout(() => res(null), 2500); }));
+  check("a missing state fires an error event", reason === "missing", reason);
+  check("a missing state explains itself in the console", logs.some((l) => l.includes("aurb add --states nope")), logs[0]?.slice(0, 70));
+  await ctx.close();
+}
+{
+  // Remove and re-add, which is what React StrictMode and list re-orders do.
+  const { ctx, page } = await open(`<div id="p"><aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb></div>`);
+  await settled(page);
+  await page.evaluate(async () => { const e = document.getElementById("o"), p = e.parentNode; e.remove(); await new Promise((r) => setTimeout(r, 50)); p.append(e); });
+  await page.waitForTimeout(1200);
+  const st = await status(page);
+  check("works after being removed and re-added", st.opacity === "1" && !st.paused && st.file === "idle-dark-160.webm", st.file);
+  await ctx.close();
+}
+
+console.log("\n-- Runtime controls --");
+{
+  const { ctx, page } = await open(`<aurb-orb id="o" transition="900 thinking:120" hold="0" src="${src}" style="width:120px"></aurb-orb>`);
+  await settled(page);
+  const fade = (s) => page.evaluate(async (s) => { const e = document.getElementById("o"); await new Promise((r) => { e.addEventListener("aurbstatechange", r, { once: true }); e.state = s; }); return getComputedStyle([...e.shadowRoot.querySelectorAll("video")].find((v) => v.style.zIndex === "1")).transitionDuration; }, s);
+  const perState = await fade("thinking");
+  check("a per-state transition applies", perState === "0.12s", perState);
+  await page.waitForTimeout(300);
+  const fallback = await fade("idle");
+  check("the default transition applies elsewhere", fallback === "0.9s", fallback);
+  await page.waitForTimeout(1100);
+  const playing = () => page.evaluate(() => [...document.getElementById("o").shadowRoot.querySelectorAll("video")].filter((v) => !v.paused).length);
+  await page.evaluate(() => { document.getElementById("o").paused = true; });
+  await page.waitForTimeout(150);
+  check("paused stops decoding", (await playing()) === 0);
+  await page.evaluate(() => { document.getElementById("o").paused = false; });
+  await page.waitForTimeout(150);
+  check("unpausing resumes", (await playing()) === 1);
+  await page.evaluate(() => document.getElementById("o").setAttribute("speed", "1.5"));
+  await page.waitForTimeout(150);
+  check("speed sets the playback rate", await page.evaluate(() => [...document.getElementById("o").shadowRoot.querySelectorAll("video")].find((v) => !v.paused).playbackRate === 1.5));
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open(`<script>window.__r=0;addEventListener("DOMContentLoaded",()=>document.getElementById("o").addEventListener("aurbready",()=>window.__r++))</script><aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb>`);
+  await settled(page);
+  await page.evaluate(() => { document.getElementById("o").state = "thinking"; });
+  await page.waitForTimeout(900);
+  check("the ready event fires once", (await page.evaluate(() => window.__r)) === 1);
+  await ctx.close();
+}
+
+console.log("\n-- Custom states from a config file --");
+{
+  const dir = path.resolve(".tmp/cfg");
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const cli = path.resolve("cli/aurb.mjs");
+  const run = (args) => spawnSync(process.execPath, [cli, ...args], { cwd: dir, encoding: "utf8" });
+  const write = (c) => fs.writeFileSync(path.join(dir, "aurb.config.json"), JSON.stringify(c));
+  write({ out: "public/aurb", states: { celebrate: { extends: "success", sweep: 1, sweepN: 2, tint: "#f59e0b" } }, orbs: { party: { preset: "aurora", states: ["idle", "celebrate"], themes: ["dark"], sizes: [160], seconds: 3, "state-color": { error: "none" } } } });
+  const built = run(["build"]);
+  check("aurb build renders a custom state", built.status === 0 && fs.readdirSync(path.join(dir, "public/aurb")).some((f) => f.startsWith("party-")), (built.stderr || "").slice(0, 80));
+  const party = path.join(dir, "public/aurb", fs.readdirSync(path.join(dir, "public/aurb"))[0]);
+  check("it produces the state's files", fs.existsSync(path.join(party, "celebrate-dark-160.webm")));
+  check("it writes types for the custom state", /celebrate: true/.test(fs.readFileSync(path.join(dir, "aurb-states.d.ts"), "utf8")));
+  for (const [label, states, hint] of [
+    ["an unknown field", { x: { wobbly: 1 } }, 'unknown field "wobbly"'],
+    ["a fractional cycle, which would break the loop", { x: { sweepN: 1.5 } }, "whole number"],
+    ["an out-of-range value", { x: { energy: 40 } }, "energy must be"],
+    ["a name that is already an alias", { running: { energy: 1 } }, "already another name"],
+    ["a bad colour", { x: { tint: "red" } }, "not a hex colour"],
+  ]) {
+    write({ states, orbs: { a: { states: ["idle"] } } });
+    const r = run(["build"]);
+    check(`config rejects ${label}`, r.status === 1 && r.stderr.includes(hint), r.stderr.trim().slice(0, 70));
+  }
+}
+
+console.log("\n-- React --");
+{
+  const { build } = await import("esbuild");
+  await build({ stdin: { contents: `
+    import { createElement as h, createRef, useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import { Aurb } from ${JSON.stringify(path.resolve("dist/react.js").replaceAll("\\", "/"))};
+    window.__events = []; window.__ref = createRef();
+    function App() {
+      const [state, setState] = useState("idle");
+      const [isStatic, setStatic] = useState(false);
+      window.__set = setState; window.__static = setStatic;
+      return h(Aurb, { id: "o", ref: window.__ref, src: ${JSON.stringify(src)}, state, static: isStatic, paused: false, className: "c", style: { width: 120 }, onStateChange: (s) => window.__events.push(s), onReady: () => window.__events.push("ready") });
+    }
+    createRoot(document.getElementById("root")).render(h(App));
+  `, resolveDir: path.resolve(".") }, bundle: true, outfile: path.join(root, "react-app.js"), logLevel: "error", define: { "process.env.NODE_ENV": '"production"' } });
+  const { ctx, page } = await open(`<div id="root"></div><script src="/react-app.js"></script>`);
+  await page.waitForFunction(() => window.__ref?.current, null, { timeout: 8000 });
+  await settled(page);
+  check("ref reaches the element", await page.evaluate(() => window.__ref.current.tagName === "AURB-ORB" && typeof window.__ref.current.flash === "function"));
+  check("static={false} and paused={false} leave no attribute", await page.evaluate(() => !window.__ref.current.hasAttribute("static") && !window.__ref.current.hasAttribute("paused")));
+  check("className becomes class", await page.evaluate(() => window.__ref.current.getAttribute("class") === "c"));
+  await page.evaluate(() => window.__set("thinking"));
+  await page.waitForTimeout(900);
+  check("the state prop drives the orb", (await status(page)).file === "thinking-dark-160.webm");
+  const ev = await page.evaluate(() => window.__events);
+  check("onReady and onStateChange fire", ev.includes("ready") && ev.includes("thinking"), ev.join(","));
+  await page.evaluate(() => window.__static(true));
+  await page.waitForTimeout(300);
+  check("static={true} stops the video", await page.evaluate(() => window.__ref.current.hasAttribute("static") && [...window.__ref.current.shadowRoot.querySelectorAll("video")].every((v) => v.paused)));
   await ctx.close();
 }
 

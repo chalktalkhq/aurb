@@ -10,9 +10,10 @@
 # tag and GitHub release if they're missing. That is how a failed publish is retried, and how the tag and release
 # for a version published by hand are created.
 #
-# npm auth is trusted publishing (OIDC): no token is stored anywhere. On npmjs.com, the @aurb/player package's settings list
-# this repository and release.yml as its trusted publisher. npm only allows that on a package that already exists, so
-# the very first version is published by hand.
+# npm auth is the NPM_TOKEN secret, an npm granular access token that can publish @aurb/player. To move to trusted
+# publishing (no stored token), list this repository and release.yml as the package's trusted publisher on npmjs.com,
+# then delete the secret: npm uses this run's identity when it can, and the token otherwise. npm only allows a
+# trusted publisher on a package that already exists; with the token, even the first version publishes from here.
 name: Release
 on:
   push:
@@ -95,6 +96,8 @@ jobs:
         run: npm run build
       - if: steps.version.outputs.published == 'false'
         run: npm publish --provenance --access public --tag ${{ steps.version.outputs.dist_tag }} --ignore-scripts # tested above, on Windows
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create the tag and GitHub release if they're missing
         if: github.event_name == 'workflow_dispatch'

@@ -1,34 +1,111 @@
-# Publishing a GitHub release tagged v<version> publishes that version to npm, with provenance, once the tests pass.
-# Needs an npm automation token as the NPM_TOKEN secret.
+# Releases are automated with release-please and Conventional Commits (https://www.conventionalcommits.org):
+#
+#   1. Every push to main updates a "chore(main): release x.y.z" pull request that bumps package.json and writes
+#      CHANGELOG.md from the commits since the last release. fix: bumps the patch, feat: the minor, and a breaking
+#      change (feat!: or a BREAKING CHANGE: footer) the major; before 1.0.0 a breaking change bumps the minor instead.
+#   2. Merging that pull request tags v<version>, creates the GitHub release, and publishes it to npm with provenance,
+#      once the tests pass.
+#
+# Running this workflow by hand publishes the version in package.json if npm doesn't have it yet, and creates its
+# tag and GitHub release if they're missing. That is how the first version goes out, and how a failed publish is
+# retried.
+#
+# npm auth: trusted publishing (OIDC) once it's set up for this repository and workflow on npmjs.com, otherwise an
+# npm automation token in the NPM_TOKEN secret. The very first publish needs the token, because npm only lets you set
+# up trusted publishing on a package that already exists.
 name: Release
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          # GitHub doesn't run workflows for pull requests opened with GITHUB_TOKEN, so CI won't run on the release
+          # pull request unless RELEASE_PLEASE_TOKEN (a fine-grained PAT with contents and pull-requests write) is set.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   test:
+    needs: release-please
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.release_created == 'true') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: "${{ needs.release-please.outputs.tag_name || github.ref }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npm test
+
   publish:
-    needs: test
+    needs: [release-please, test]
+    if: ${{ always() && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write # npm provenance: the package links back to this commit
+      contents: write # creating the tag and release on a manual run
+      id-token: write # npm provenance and trusted publishing
     steps:
       - uses: actions/checkout@v4
+        with: { ref: "${{ needs.release-please.outputs.tag_name || github.ref }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm, registry-url: "https://registry.npmjs.org" }
+      - run: npm install -g npm@11 # trusted publishing needs npm 11.5.1 or later
+
+      - name: Read the version
+        id: version
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          # A prerelease (1.2.0-beta.1) goes to the next dist-tag, so npm install aurb keeps getting the latest stable.
+          case "$version" in *-*) echo "dist_tag=next" >> "$GITHUB_OUTPUT" ;; *) echo "dist_tag=latest" >> "$GITHUB_OUTPUT" ;; esac
+          if npm view "aurb@$version" version > /dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::aurb@$version is already on npm, nothing to publish"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: The tag matches package.json
-        run: test "${{ github.event.release.tag_name }}" = "v$(node -p 'require("./package.json").version')"
-      - run: npm ci
-      - run: npm run build
-      - run: npm publish --provenance --access public --ignore-scripts # tested above, on Windows
+        if: needs.release-please.outputs.tag_name != ''
+        run: test "${{ needs.release-please.outputs.tag_name }}" = "${{ steps.version.outputs.tag }}"
+
+      - if: steps.version.outputs.published == 'false'
+        run: npm ci
+      - if: steps.version.outputs.published == 'false'
+        run: npm run build
+      - if: steps.version.outputs.published == 'false'
+        run: npm publish --provenance --access public --tag ${{ steps.version.outputs.dist_tag }} --ignore-scripts # tested above, on Windows
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create the tag and GitHub release if they're missing
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists"
+          else
+            prerelease=""; case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes $prerelease
+          fi

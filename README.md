@@ -198,6 +198,12 @@ npm test
 
 This builds, fails if the player goes over 4 KB gzip, compiles strict type tests, and checks in a real browser exactly which files download and how the states behave. The browser test plays two small orbs kept in `test/orbs`, so it needs nothing else.
 
+### Releasing
+
+Releases are automated with [release-please](https://github.com/googleapis/release-please). Commits on `main` follow [Conventional Commits](https://www.conventionalcommits.org): `fix:` releases a patch, `feat:` a minor, and `feat!:` or a `BREAKING CHANGE:` footer a major (a minor while the version is below 1.0.0). Pull requests are squash-merged, so their titles are checked for this.
+
+Each push to `main` keeps a release pull request up to date with the next version and its `CHANGELOG.md` entry. Merging it tags the release, creates the GitHub release, and publishes it to npm with provenance once the tests pass. Running the Release workflow by hand publishes the version in `package.json` if npm doesn't have it yet.
+
 ## License
 
 MIT

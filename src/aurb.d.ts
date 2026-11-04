@@ -1,8 +1,7 @@
 /**
- * Every state an orb can be in. Add your own from aurb.config.json with declaration merging, which
- * `aurb build` writes for you:
+ * Every state an orb can be in. An orb with states of its own adds them with declaration merging:
  *
- *     declare module "aurb" { interface AurbStates { celebrate: true } }
+ *     declare module "@aurb/player" { interface AurbStates { celebrate: true } }
  */
 export interface AurbStates {
   idle: true; listening: true; thinking: true; working: true; speaking: true; success: true; error: true; asleep: true;
@@ -12,7 +11,7 @@ export interface AurbStates {
 export type AurbState = keyof AurbStates;
 
 export interface PrefetchOptions {
-  /** An orb's name, such as "aurora", a pinned version, such as "aurora@1.0.2", or the URL of a folder you host yourself. */
+  /** An orb's name, such as "aurora", a pinned version, such as "aurora@1.0.0", a community orb's npm package, such as "npm:aurb-orb-nebula@1.0.0", or the URL of a folder you host yourself. */
   orb: string;
   states: AurbState | readonly AurbState[];
   /** Defaults to the page's current theme. */

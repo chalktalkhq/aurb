@@ -1,13 +1,13 @@
 // What the player and the standalone prefetch entry have in common. No side effects, and no
-// reference to the element, so `aurb/prefetch` stays a few hundred bytes.
+// reference to the element, so `@aurb/player/prefetch` stays a few hundred bytes.
 
 export const ALIASES = { running: "working", busy: "working", loading: "thinking", processing: "thinking", talking: "speaking", recording: "listening", done: "success", failed: "error", sleeping: "asleep", dormant: "asleep", default: "idle" };
 
-// Every orb is its own npm package, @aurb/<name>, served free by jsDelivr from the edge nearest each visitor. An orb
-// is a name, such as "aurora" (the latest 1.x, so improved renders arrive without a code change), a pinned version,
-// such as "aurora@1.0.2", or the URL of a folder you host yourself.
-export const CDN = "https://cdn.jsdelivr.net/npm/@aurb";
-export const folder = (orb) => (orb.includes("/") ? orb.replace(/\/$/, "") : `${CDN}/${orb.includes("@") ? orb : orb + "@1"}`);
+// Every orb is an npm package, served free by jsDelivr from the edge nearest each visitor. An orb is a name, such as
+// "aurora" (@aurb/aurora at the latest 1.x, so improved renders arrive without a code change), a pinned version, such
+// as "aurora@1.0.0", any npm package, such as "npm:aurb-orb-nebula@1.0.0", or the URL of a folder you host yourself.
+export const NPM = "https://cdn.jsdelivr.net/npm";
+export const folder = (orb) => orb.startsWith("npm:") ? `${NPM}/${orb.slice(4).replace(/\/$/, "")}` : orb.includes("/") ? orb.replace(/\/$/, "") : `${NPM}/@aurb/${orb.includes("@") ? orb : orb + "@1"}`;
 
 export const parseList = (v) => (v || "").split(",").map((s) => s.trim()).filter(Boolean);
 const TIERS = { sm: 80, md: 160, lg: 320, xl: 640 };
@@ -35,15 +35,16 @@ export function detectTheme(forced) {
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-// Every file is fetched whole and played from memory. Static hosts may ignore Range requests, which Safari needs to
-// stream a video, and a loop of a few dozen KB gains nothing from streaming. Kept by URL, so nothing downloads twice,
-// even on a host without cache headers.
+// Resolves to a blob: URL, to 0 when the server says the file isn't there (a 4xx), or to null when it couldn't be
+// reached, which is worth trying again. Every file is fetched whole and played from memory. Static hosts may ignore
+// Range requests, which Safari needs to stream a video, and a loop of a few dozen KB gains nothing from streaming.
+// Kept by URL, so nothing downloads twice, even on a host without cache headers.
 export const blobs = new Map();
 export function load(url, priority) {
   if (!blobs.has(url)) blobs.set(url, fetch(url, { priority })
     .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
     .then((b) => URL.createObjectURL(b))
-    .catch(() => (blobs.delete(url), null)));
+    .catch((e) => (blobs.delete(url), e > 399 && e < 500 ? 0 : null)));
   return blobs.get(url);
 }
 

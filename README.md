@@ -3,11 +3,11 @@
 Animated orbs for AI products. Multi-state, smooth transitions, a 4 KB player, and it never blocks your page.
 
 ```bash
-npm i aurb
+npm i @aurb/player
 ```
 
 ```js
-import "aurb";
+import "@aurb/player";
 ```
 
 ```html
@@ -17,23 +17,23 @@ import "aurb";
 document.querySelector("aurb-orb").state = "thinking"; // it crossfades
 ```
 
-Or with no build step: `<script src="https://cdn.jsdelivr.net/npm/aurb/dist/aurb.global.js" defer></script>`.
+Or with no build step: `<script src="https://cdn.jsdelivr.net/npm/@aurb/player/dist/aurb.global.js" defer></script>`.
 
-There are no files to download, render, or host, and no key. Every orb is free, for any project, including commercial ones. Pick one from [Orbs](#orbs), or run `npx aurb` to browse them, and the player fetches it from jsDelivr, a free public CDN, at the edge nearest your visitor.
+There are no files to download, render, or host, and no key. Every orb is free, for any project, including commercial ones. Pick one from [Orbs](#orbs), or run `npx @aurb/player` to browse them, and the player fetches it from jsDelivr, a free public CDN, at the edge nearest your visitor.
 
-To host the files yourself, run `npx aurb download aurora --out public/orbs` and set `orb` to the folder's URL: `orb="/orbs/aurora"`.
+To host the files yourself, run `npx @aurb/player download aurora --out public/orbs` and set `orb` to the folder's URL: `orb="/orbs/aurora"`. If your site only ever shows one theme, add `--theme dark` to save about half the files, and set `theme="dark"` on the element.
 
 ## Command line
 
 ```bash
-npx aurb                   # pick an orb, get its code, copied to your clipboard
-npx aurb add aurora        # the same for one orb: --html, --state thinking, --json
-npx aurb list              # every orb
-npx aurb preview aurora    # play every state in your browser
-npx aurb download aurora   # save the files to host yourself
+npx @aurb/player                          # pick an orb, get its code, copied to your clipboard
+npx @aurb/player add aurora               # the same for one orb: --html, --state thinking, --json
+npx @aurb/player list                     # every orb
+npx @aurb/player preview aurora           # play every state in your browser
+npx @aurb/player download aurora          # save the files to host yourself: --theme dark for one theme
 ```
 
-To make an orb of your own, `npx aurb pack` turns your loops into one, and [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs) explains how to share it with everyone.
+To make an orb of your own, `npx @aurb/player pack` turns your loops into one and `npx @aurb/player publish` puts it on npm as your own package. [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs) explains how to get it listed.
 
 ## How it works, and its limits
 
@@ -75,7 +75,7 @@ orb.prefetchOn(sendButton, "thinking");
 orb.prefetch(["thinking"]);
 
 // On the page before, without shipping the player to it (about 1 KB)
-import { prefetch } from "aurb/prefetch";
+import { prefetch } from "@aurb/player/prefetch";
 prefetch({ orb: "aurora", states: "idle", width: 120 });
 ```
 
@@ -85,7 +85,11 @@ All of these stay off on Save-Data and 2G, use low network priority where the br
 
 These aren't recolours. Each one has its own material and shape, and moves in its own way in every state. All of them are free.
 
-The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served by jsDelivr. A name follows the latest 1.x, so an improved render reaches your site within a week without a code change; pin one with `orb="aurora@1.0.2"`. Anyone can add an orb: see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
+The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served by jsDelivr. A name follows the latest 1.x, so an improved render reaches your site within a week without a code change; pin one with `orb="aurora@1.0.0"`.
+
+An orb can be made in one theme only, marked "dark only" in `npx @aurb/player list`; its copied code sets `theme="dark"`, and it plays in that theme on any page, so give it a dark panel on a light page.
+
+Community orbs stay in their maker's own npm package, and the value names it with its exact version: `orb="npm:aurb-orb-nebula@1.0.0"`. Nobody types that: `npx @aurb/player` and the site copy it for you, always at the version that was reviewed, so an update reaches your site only after it is reviewed too. To list one, see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
 
 | `orb` | Character |
 |---|---|
@@ -101,9 +105,9 @@ The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served 
 | `rose` | Pink glass with a heartbeat inside |
 | `moss` | Organic and lumpy. It grows and creeps |
 | `signal` | A body of dots trying to get out. Every state moves its own way |
-| `caustic` | A ball of light with a caustic net through it, like sunlight through moving water |
-| `ferro` | Black chrome ferrofluid with a molten core. Use `transition="rest"` with `import "aurb/rest"` |
-| `mercury` | A drop of liquid silver that turns to gold when it's done. Use `transition="rest"` with `import "aurb/rest"` |
+| `ferro` | Black chrome ferrofluid with a molten core. Use `transition="rest"` with `import "@aurb/player/rest"` |
+| `mercury` | A drop of liquid silver that turns to gold when it's done. Use `transition="rest"` with `import "@aurb/player/rest"` |
+| `bubble` | A soap bubble. Its colours are real thin-film light; it ripples, swirls and streams with every state, and pops when something fails. Use `transition="rest"` with `import "@aurb/player/rest"` |
 
 ## States
 
@@ -126,12 +130,12 @@ Those are the defaults; each preset changes how it does them.
 
 | Attribute | Default | Meaning |
 |---|---|---|
-| `orb` | | Which orb, such as `aurora`, or the URL of a folder you host |
+| `orb` | | Which orb: a name such as `aurora`, a package such as `npm:aurb-orb-nebula@1.0.0`, or the URL of a folder you host |
 | `state` | `idle` | Change it at any time; the newest request wins |
-| `transition` | `500` | Crossfade in ms, optionally per state: `"500 thinking:250 error:150"` |
+| `transition` | `500` | Crossfade in ms, optionally per state: `"500 thinking:250 error:150"`. `rest` moves a solid orb through its rest pose instead, with `import "@aurb/player/rest"` |
 | `hold` | `200` | Minimum ms a state stays, so fast responses don't flicker |
 | `surface` | `auto` | See below |
-| `theme` | `auto` | Follows `.dark`, `.light`, or `data-theme` on `<html>` or `<body>`, then the system |
+| `theme` | `auto` | Follows `.dark`, `.light`, or `data-theme` on `<html>` or `<body>`, then the system. Only that theme downloads. An orb made in one theme always plays in it |
 | `prefetch` | | States to fetch once the page is idle |
 | `loading` | `lazy` | `eager` starts before the page's load event |
 | `sizes` | `sm,md,lg` | Tiers the player may choose from. Leave it alone for automatic, or set one, such as `sizes="sm"`, to force it |
@@ -141,7 +145,7 @@ Those are the defaults; each preset changes how it does them.
 
 **Methods:** `orb.flash("success", 1500)` shows a state, then returns. `orb.prefetch(states)` and `orb.prefetchOn(element, states)` fetch ahead. `orb.refresh()` re-reads the theme and the colour behind the orb, for when your app changes them in a way the orb can't see.
 
-**Events:** `aurbready` when the first frame shows, `aurbstatechange` with `detail.state`, and `aurberror` with `detail.reason`, either `missing` (this orb has no such state) or `blocked` (the browser refused autoplay). In both error cases the current picture stays.
+**Events:** `aurbready` when the first frame shows, `aurbstatechange` with `detail.state`, and `aurberror` with `detail.reason`, either `missing` (this orb has no such state, or no orb is at that name) or `blocked` (the browser refused autoplay). In both error cases the current picture stays. A file that can't be reached, offline or on a server error, isn't an error: the picture stays, and it tries again on coming back online or a few seconds later.
 
 **Styling:** set the size with CSS `width`. The `surface` and `stack` parts are available through `::part()`.
 
@@ -160,8 +164,8 @@ Each playing orb decodes its own video. For a list, keep one or two moving: use 
 ## React
 
 ```tsx
-import { Aurb } from "aurb/react";
-import type { AurbOrb } from "aurb";
+import { Aurb } from "@aurb/player/react";
+import type { AurbOrb } from "@aurb/player";
 
 const ref = useRef<AurbOrb>(null);
 
@@ -179,10 +183,10 @@ Works with React 18 and 19, and is safe to server-render: the size is reserved b
 
 ## TypeScript
 
-Types ship with the package. State names are checked, so `state="thinkin"` is a compile error, on the element, the React component, and `prefetch()`. A custom orb with its own states comes with an `aurb-states.d.ts` that adds them:
+Types ship with the package. State names are checked, so `state="thinkin"` is a compile error, on the element, the React component, and `prefetch()`. An orb with states of its own adds them with declaration merging:
 
 ```ts
-declare module "aurb" {
+declare module "@aurb/player" {
   interface AurbStates {
     celebrate: true;
   }
@@ -197,6 +201,12 @@ npm test
 ```
 
 This builds, fails if the player goes over 4 KB gzip, compiles strict type tests, and checks in a real browser exactly which files download and how the states behave. The browser test plays two small orbs kept in `test/orbs`, so it needs nothing else.
+
+### Releasing
+
+Releases are automated with [release-please](https://github.com/googleapis/release-please). Commits on `main` follow [Conventional Commits](https://www.conventionalcommits.org): `fix:` releases a patch, `feat:` a minor, and `feat!:` or a `BREAKING CHANGE:` footer a major (a minor while the version is below 1.0.0). Pull requests are squash-merged, so their titles are checked for this.
+
+Each push to `main` keeps a release pull request up to date with the next version and its `CHANGELOG.md` entry. Merging it tags the release, creates the GitHub release, and publishes it to npm with provenance once the tests pass. Running the Release workflow by hand publishes the version in `package.json` if npm doesn't have it yet.
 
 ## License
 

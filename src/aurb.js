@@ -23,6 +23,8 @@ const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").match
 
 // One set of observers for every orb on the page, so ten orbs cost the same as one to watch.
 const orbs = new Set();
+// An orb made in one theme has no files in the other: the theme it does have, by folder, once a poster is missing.
+const only = new Map();
 let io, ro, pageTheme;
 const each = (f) => orbs.forEach(f);
 function watchPage() {
@@ -40,13 +42,14 @@ function watchPage() {
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme);
   matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", () => each((o) => o.refresh()));
   document.addEventListener("visibilitychange", () => each((o) => o.refresh()));
+  addEventListener("online", () => each((o) => o.refresh()));
   if (document.readyState !== "complete") addEventListener("load", () => each((o) => o.refresh()), { once: true });
 }
 
 export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
   static observedAttributes = ["state", "orb", "sizes", "theme", "surface", "paused", "speed", "static", "prefetch"];
   #surface; #stack; #videos; #active = null; #shown = null; #shownSrc = null; #token = 0; #busyUntil = 0;
-  #size; #visible = false; #hold; #repaint; #flashBack; #flashTimer; #mp4Only = false; #ready = false; #queued = false;
+  #size; #poster; #posterP; #visible = false; #hold; #repaint; #flashBack; #flashTimer; #mp4Only = false; #ready = false; #queued = false;
 
   constructor() {
     super();
@@ -73,7 +76,7 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
 
   /** Fetch states now, for this orb's size and theme. Defaults to the `prefetch` attribute. */
   #fetchAhead(states) {
-    prefetch({ orb: this.getAttribute("orb"), states: states ?? parseList(this.getAttribute("prefetch")), theme: this.getAttribute("theme"), width: this.clientWidth || 120, sizes: this.getAttribute("sizes") });
+    prefetch({ orb: this.getAttribute("orb"), states: states ?? parseList(this.getAttribute("prefetch")), theme: this.#theme(folder(this.getAttribute("orb") || "")), width: this.clientWidth || 120, sizes: this.getAttribute("sizes") });
   }
   // A method to call and an attribute to set, under one name. React 19 assigns a prop as a property when
   // the element has one by that name, so a plain method would be replaced by the string.
@@ -149,21 +152,37 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
     this.#surface.style.background = bg;
   }
 
+  // The page's theme, unless this orb only comes in the other one.
+  #theme(src) { return only.get(src) || detectTheme(this.getAttribute("theme")); }
+
   /** Re-read the theme and the colour behind the orb, if your app changes them in a way it can't see. */
   refresh() {
     const orb = this.getAttribute("orb");
     if (!orb) return;
     const src = folder(orb);
-    const theme = detectTheme(this.getAttribute("theme"));
+    const theme = this.#theme(src);
     const sizes = parseSizes(this.getAttribute("sizes"));
     if (!this.#size && this.clientWidth) this.#size = pickSize(sizes, this.clientWidth);
     const size = this.#size ?? sizes[sizes.length - 1];
-    this.#stack.style.backgroundImage = `url("${src}/poster-${theme}-${size}.jpg")`;
+    // The poster is fetched like the videos, alongside the first one, and the old poster stays until the new one is in,
+    // so a change of theme or size never flashes empty. A missing poster means the orb has no such theme: one made
+    // in one theme switches to it, videos too. Missing in both, the name or URL is wrong. Unreachable, it's retried.
+    const poster = `${src}/poster-${theme}-${size}.jpg`;
+    if (poster !== this.#poster) {
+      this.#poster = poster;
+      (this.#posterP = load(poster)).then((u) => {
+        if (this.#poster !== poster) return;
+        if (u) this.#stack.style.backgroundImage = `url("${u}")`;
+        else if (u === null) this.#poster = null;
+        else if (!only.has(src)) { only.set(src, theme === "dark" ? "light" : "dark"); this.refresh(); }
+        else if (only.get(src) === theme) { only.set(src, ""); warn(`${orb}: nothing at ${src}`); this.#emit("aurberror", { state: this.state, url: poster, reason: "missing" }); }
+      });
+    }
     this.#stack.style.mixBlendMode = theme === "dark" ? "screen" : "multiply";
     this.#paint(theme);
     // A theme change usually animates its colours; look again once they have settled.
     clearTimeout(this.#repaint);
-    this.#repaint = setTimeout(() => this.#paint(detectTheme(this.getAttribute("theme"))), 350);
+    this.#repaint = setTimeout(() => this.#paint(this.#theme(src)), 350);
 
     // Poster only: asked for, reduced motion, or a data-saving connection. No video is fetched.
     if (this.hasAttribute("static") || reducedMotion() || slowNetwork()) {
@@ -178,7 +197,7 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
     const state = ALIASES[this.state] ?? this.state;
     const url = file(src, state, theme, size, !this.#mp4Only && supportsWebm() ? "webm" : "mp4");
     if (url === this.#shown) return;
-    // aurb/rest can take a change over: solid orbs move through a rest pose instead of crossfading.
+    // @aurb/player/rest can take a change over: solid orbs move through a rest pose instead of crossfading.
     if (AurbOrb.rest?.(this, url, this.#switch.bind(this))) return;
     // Wait for a fade to finish: the next video takes the element underneath it, and swapping that
     // mid-fade leaves a hole in the picture. The hold also stops fast responses flickering past.
@@ -197,11 +216,11 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
   }
 
   #fadeFor(state) {
-    // "500" or "500 thinking:250 error:150"
+    // "500" or "500 thinking:250 error:150". A word, such as rest for @aurb/player/rest, leaves the default.
     let ms = 500;
     for (const part of (this.getAttribute("transition") ?? "").split(/\s+/)) {
       const [a, b] = part.split(":");
-      if (b === undefined) { if (a) ms = Number(a); } else if (a === state) return Number(b);
+      if (b === undefined) { if (a && a >= 0) ms = +a; } else if (a === state) return Number(b);
     }
     return ms;
   }
@@ -220,7 +239,7 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
     try {
       const held = await load(url);
       if (token !== this.#token) return;
-      if (!held) throw new Error("load");
+      if (!held) throw held;
       s.transition = "none";
       s.opacity = 0;
       to.src = held;
@@ -238,12 +257,15 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
       if (token !== this.#token) return;
       this.#shown = this.#shownSrc;
       // Blocked autoplay is not a broken file: stay on the poster and download nothing more.
-      if (e.name === "NotAllowedError") return this.#emit("aurberror", { state, url, reason: "blocked" });
-      // VP9 may be advertised and still fail, so try H.264 once. If that fails too, the file is just
-      // missing: VP9 was never the problem, so keep it, and the current picture stays.
-      // A rest sheet that fails is a missing file, not a codec: aurb/rest falls back to a crossfade instead.
-      if (!join && url.endsWith("webm")) { this.#mp4Only = true; return this.refresh(); }
-      this.#mp4Only = false;
+      if (e?.name === "NotAllowedError") return this.#emit("aurberror", { state, url, reason: "blocked" });
+      // Couldn't reach it: nothing is wrong with the orb, so change nothing, and try again: on coming back online,
+      // or in a few seconds when a server failed. The current picture stays meanwhile.
+      if (e === null) return void (navigator.onLine && setTimeout(() => token === this.#token && this.refresh(), 5e3));
+      // Not there, and nor is this theme's poster: the orb has no such theme, and the poster's answer moves it over.
+      // A rest sheet that fails is a missing file too: @aurb/player/rest falls back to a crossfade.
+      if (e === 0) { if ((await this.#posterP) === 0 || token !== this.#token) return; }
+      // Downloaded but wouldn't play: VP9 can be advertised and still fail, so H.264 from here on.
+      else if (!join && url.endsWith("webm")) { this.#mp4Only = true; return this.refresh(); }
       warn(`${this.getAttribute("orb")}: no ${state}`);
       return this.#emit("aurberror", { state, url, reason: "missing" });
     } finally {

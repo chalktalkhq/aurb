@@ -63,6 +63,9 @@ async function open(body, { htmlClass = "dark", ctxOptions = {}, init, esm, rout
 }
 const src = `orb="${BASE}/${folderName}"`;
 const props = `orb: ${JSON.stringify(`${BASE}/${folderName}`)}`;
+// Waits until an orb's video is really playing, rather than a fixed time: a cold browser on a busy CI machine can take
+// seconds to start its first video. Resolves either way; the checks after it say what went wrong.
+const playing = (page, id = "o", timeout = 10000) => page.waitForFunction((id) => [...(document.getElementById(id)?.shadowRoot?.querySelectorAll("video") ?? [])].some((v) => !v.paused && v.currentTime > 0), id, { timeout }).catch(() => {});
 const status = (page, id = "o") => page.evaluate((id) => {
   const o = document.getElementById(id);
   const vs = [...o.shadowRoot.querySelectorAll("video")];
@@ -70,10 +73,19 @@ const status = (page, id = "o") => page.evaluate((id) => {
   return { state: o.state, file: decodeURI(window.__names[top.currentSrc] ?? top.currentSrc).split("/").pop(), opacity: getComputedStyle(top).opacity, paused: top.paused, playing: vs.filter((v) => !v.paused).length };
 }, id);
 
+// The first video a browser plays costs it a decoder start-up that later pages don't pay: pay it once, here, so it
+// doesn't land on whichever check comes first.
+{
+  const { ctx, page } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`);
+  await playing(page, "o", 20000);
+  await ctx.close();
+}
+
 console.log("\n-- Downloads only what is needed --");
 {
   const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`);
-  await page.waitForTimeout(1500);
+  await playing(page);
+  await page.waitForTimeout(300); // and anything else it might wrongly fetch has had time to start
   const st = await status(page);
   check("one state fetched: poster and idle, nothing else", media.size === 2 && media.has("idle-dark-160.webm") && media.has("poster-dark-160.jpg"), [...media].join(", "));
   check("prefers VP9", st.file.endsWith(".webm"), st.file);

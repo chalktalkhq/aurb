@@ -1,0 +1,18 @@
+# Every pull request and every push to main: build within the size budgets, the strict type tests, and the browser
+# tests. Those run in real Chrome, which plays H.264 (Playwright's own Chromium can't), on Windows, as they do locally.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test

@@ -5,11 +5,11 @@ export type { AurbErrorDetail, AurbOrb, AurbState } from "./aurb.js";
 
 /** The element's own attributes. */
 export interface AurbAttributes {
-  /** An orb's name, such as "aurora", a pinned version, such as "aurora@1.0.2", a community orb's npm package, such as "npm:aurb-orb-nebula@1.0.2", or the URL of a folder you host yourself. */
+  /** An orb's name, such as "aurora", a pinned version, such as "aurora@1.0.0", a community orb's npm package, such as "npm:aurb-orb-nebula@1.0.0", or the URL of a folder you host yourself. */
   orb: string;
   /** Change it at any time; it crossfades. */
   state?: AurbState | undefined;
-  /** Crossfade in ms, optionally per state: "500 thinking:250 error:150". Default 500. */
+  /** Crossfade in ms, optionally per state: "500 thinking:250 error:150". Default 500. "rest" moves a solid orb through its rest pose, with `import "@aurb/player/rest"`. */
   transition?: number | string | undefined;
   /** Minimum ms a state stays before the next, so fast responses do not flicker. Default 200. */
   hold?: number | string | undefined;

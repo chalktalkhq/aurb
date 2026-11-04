@@ -85,11 +85,11 @@ All of these stay off on Save-Data and 2G, use low network priority where the br
 
 These aren't recolours. Each one has its own material and shape, and moves in its own way in every state. All of them are free.
 
-The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served by jsDelivr. A name follows the latest 1.x, so an improved render reaches your site within a week without a code change; pin one with `orb="aurora@1.0.2"`.
+The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served by jsDelivr. A name follows the latest 1.x, so an improved render reaches your site within a week without a code change; pin one with `orb="aurora@1.0.0"`.
 
-Some orbs are made in one theme, marked "dark only" in `npx @aurb/player list`; their copied code sets `theme="dark"`, and they play in that theme on any page, so give one a dark panel on a light page.
+An orb can be made in one theme only, marked "dark only" in `npx @aurb/player list`; its copied code sets `theme="dark"`, and it plays in that theme on any page, so give it a dark panel on a light page.
 
-Community orbs stay in their maker's own npm package, and the value names it with its exact version: `orb="npm:aurb-orb-nebula@1.0.2"`. Nobody types that: `npx @aurb/player` and the site copy it for you, always at the version that was reviewed, so an update reaches your site only after it is reviewed too. To list one, see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
+Community orbs stay in their maker's own npm package, and the value names it with its exact version: `orb="npm:aurb-orb-nebula@1.0.0"`. Nobody types that: `npx @aurb/player` and the site copy it for you, always at the version that was reviewed, so an update reaches your site only after it is reviewed too. To list one, see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
 
 | `orb` | Character |
 |---|---|
@@ -105,9 +105,9 @@ Community orbs stay in their maker's own npm package, and the value names it wit
 | `rose` | Pink glass with a heartbeat inside |
 | `moss` | Organic and lumpy. It grows and creeps |
 | `signal` | A body of dots trying to get out. Every state moves its own way |
-| `caustic` | A ball of light with a caustic net through it, like sunlight through moving water |
 | `ferro` | Black chrome ferrofluid with a molten core. Use `transition="rest"` with `import "@aurb/player/rest"` |
 | `mercury` | A drop of liquid silver that turns to gold when it's done. Use `transition="rest"` with `import "@aurb/player/rest"` |
+| `bubble` | A soap bubble. Its colours are real thin-film light; it ripples, swirls and streams with every state, and pops when something fails. Use `transition="rest"` with `import "@aurb/player/rest"` |
 
 ## States
 
@@ -130,9 +130,9 @@ Those are the defaults; each preset changes how it does them.
 
 | Attribute | Default | Meaning |
 |---|---|---|
-| `orb` | | Which orb: a name such as `aurora`, a package such as `npm:aurb-orb-nebula@1.0.2`, or the URL of a folder you host |
+| `orb` | | Which orb: a name such as `aurora`, a package such as `npm:aurb-orb-nebula@1.0.0`, or the URL of a folder you host |
 | `state` | `idle` | Change it at any time; the newest request wins |
-| `transition` | `500` | Crossfade in ms, optionally per state: `"500 thinking:250 error:150"` |
+| `transition` | `500` | Crossfade in ms, optionally per state: `"500 thinking:250 error:150"`. `rest` moves a solid orb through its rest pose instead, with `import "@aurb/player/rest"` |
 | `hold` | `200` | Minimum ms a state stays, so fast responses don't flicker |
 | `surface` | `auto` | See below |
 | `theme` | `auto` | Follows `.dark`, `.light`, or `data-theme` on `<html>` or `<body>`, then the system. Only that theme downloads. An orb made in one theme always plays in it |
@@ -183,7 +183,7 @@ Works with React 18 and 19, and is safe to server-render: the size is reserved b
 
 ## TypeScript
 
-Types ship with the package. State names are checked, so `state="thinkin"` is a compile error, on the element, the React component, and `prefetch()`. A custom orb with its own states comes with an `aurb-states.d.ts` that adds them:
+Types ship with the package. State names are checked, so `state="thinkin"` is a compile error, on the element, the React component, and `prefetch()`. An orb with states of its own adds them with declaration merging:
 
 ```ts
 declare module "@aurb/player" {

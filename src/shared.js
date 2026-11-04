@@ -5,7 +5,7 @@ export const ALIASES = { running: "working", busy: "working", loading: "thinking
 
 // Every orb is an npm package, served free by jsDelivr from the edge nearest each visitor. An orb is a name, such as
 // "aurora" (@aurb/aurora at the latest 1.x, so improved renders arrive without a code change), a pinned version, such
-// as "aurora@1.0.2", any npm package, such as "npm:aurb-orb-nebula@1.0.2", or the URL of a folder you host yourself.
+// as "aurora@1.0.0", any npm package, such as "npm:aurb-orb-nebula@1.0.0", or the URL of a folder you host yourself.
 export const NPM = "https://cdn.jsdelivr.net/npm";
 export const folder = (orb) => orb.startsWith("npm:") ? `${NPM}/${orb.slice(4).replace(/\/$/, "")}` : orb.includes("/") ? orb.replace(/\/$/, "") : `${NPM}/@aurb/${orb.includes("@") ? orb : orb + "@1"}`;
 
@@ -36,9 +36,9 @@ export function detectTheme(forced) {
 }
 
 // Resolves to a blob: URL, to 0 when the server says the file isn't there (a 4xx), or to null when it couldn't be
-// reached, which is worth trying again. Every file is fetched whole and played from memory. Static hosts may ignore Range requests, which Safari needs to
-// stream a video, and a loop of a few dozen KB gains nothing from streaming. Kept by URL, so nothing downloads twice,
-// even on a host without cache headers.
+// reached, which is worth trying again. Every file is fetched whole and played from memory. Static hosts may ignore
+// Range requests, which Safari needs to stream a video, and a loop of a few dozen KB gains nothing from streaming.
+// Kept by URL, so nothing downloads twice, even on a host without cache headers.
 export const blobs = new Map();
 export function load(url, priority) {
   if (!blobs.has(url)) blobs.set(url, fetch(url, { priority })

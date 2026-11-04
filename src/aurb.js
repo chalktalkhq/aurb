@@ -216,11 +216,11 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
   }
 
   #fadeFor(state) {
-    // "500" or "500 thinking:250 error:150"
+    // "500" or "500 thinking:250 error:150". A word, such as rest for @aurb/player/rest, leaves the default.
     let ms = 500;
     for (const part of (this.getAttribute("transition") ?? "").split(/\s+/)) {
       const [a, b] = part.split(":");
-      if (b === undefined) { if (a) ms = Number(a); } else if (a === state) return Number(b);
+      if (b === undefined) { if (a && a >= 0) ms = +a; } else if (a === state) return Number(b);
     }
     return ms;
   }

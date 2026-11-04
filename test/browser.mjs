@@ -349,6 +349,11 @@ console.log("\n-- Runtime controls --");
   const fallback = await fade("idle");
   check("the default transition applies elsewhere", fallback === "0.9s", fallback);
   await page.waitForTimeout(1100);
+  // rest is a word for @aurb/player/rest, not a length: any crossfade it leaves to the player is the default one.
+  await page.evaluate(() => document.getElementById("o").setAttribute("transition", "rest"));
+  const word = await fade("thinking");
+  check("transition=rest crossfades at the default length", word === "0.5s", word);
+  await page.waitForTimeout(700);
   const playing = () => page.evaluate(() => [...document.getElementById("o").shadowRoot.querySelectorAll("video")].filter((v) => !v.paused).length);
   await page.evaluate(() => { document.getElementById("o").paused = true; });
   await page.waitForTimeout(150);

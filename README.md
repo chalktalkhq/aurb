@@ -21,7 +21,7 @@ Or with no build step: `<script src="https://cdn.jsdelivr.net/npm/aurb/dist/aurb
 
 There are no files to download, render, or host, and no key. Every orb is free, for any project, including commercial ones. Pick one from [Orbs](#orbs), or run `npx aurb` to browse them, and the player fetches it from jsDelivr, a free public CDN, at the edge nearest your visitor.
 
-To host the files yourself, run `npx aurb download aurora --out public/orbs` and set `orb` to the folder's URL: `orb="/orbs/aurora"`.
+To host the files yourself, run `npx aurb download aurora --out public/orbs` and set `orb` to the folder's URL: `orb="/orbs/aurora"`. If your site only ever shows one theme, add `--theme dark` to save about half the files, and set `theme="dark"` on the element.
 
 ## Command line
 
@@ -30,7 +30,7 @@ npx aurb                   # pick an orb, get its code, copied to your clipboard
 npx aurb add aurora        # the same for one orb: --html, --state thinking, --json
 npx aurb list              # every orb
 npx aurb preview aurora    # play every state in your browser
-npx aurb download aurora   # save the files to host yourself
+npx aurb download aurora   # save the files to host yourself: --theme dark for one theme
 ```
 
 To make an orb of your own, `npx aurb pack` turns your loops into one and `npx aurb publish` puts it on npm as your own package. [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs) explains how to get it listed.

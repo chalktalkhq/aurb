@@ -28,7 +28,7 @@ const HELP = `${bold("aurb")}: animated orbs for AI products
   ${cyan("npx aurb add")} aurora            the code for one orb  ${dim("--html  --state thinking  --json")}
   ${cyan("npx aurb list")}                  every orb  ${dim("--json")}
   ${cyan("npx aurb preview")} aurora        play it in your browser, every state  ${dim("--port 4300")}
-  ${cyan("npx aurb download")} aurora       save the files to host yourself  ${dim("--out public/orbs")}
+  ${cyan("npx aurb download")} aurora       save the files to host yourself  ${dim("--out public/orbs  --theme dark")}
 
 Making an orb
   ${cyan("npx aurb pack")} ./loops --name nebula   encode your loops into an orb  ${dim('--note "..."  --xl  --out orbs')}
@@ -229,7 +229,11 @@ async function download(name, args) {
   if (!manifest) die(`Couldn't download ${orb.name}'s manifest.json.`, "Try again in a minute");
   const out = path.resolve(String(args.out ?? "orbs"), orb.name);
   fs.mkdirSync(out, { recursive: true });
-  const files = ["manifest.json", ...Object.keys(manifest.kb)];
+  // One theme, for a site that only ever shows that one: about half the files. The element must then say so.
+  const theme = args.theme === undefined ? null : String(args.theme);
+  if (theme && !THEMES.includes(theme)) die(`--theme is ${THEMES.join(" or ")}.`);
+  const other = theme && THEMES.find((t) => t !== theme);
+  const files = ["manifest.json", ...Object.keys(manifest.kb).filter((f) => !other || !f.includes(`-${other}-`))];
   let n = 0;
   for (const f of files) {
     const r = await fetch(`${from}/${f}`);
@@ -239,7 +243,8 @@ async function download(name, args) {
   }
   const rel = path.relative(process.cwd(), out).split(path.sep).join("/");
   console.log(`\r${green("✓")} Saved ${files.length} files to ${rel}`);
-  console.log(`Serve that folder with your site, then use ${cyan(`orb="/${rel.replace(/^public\//, "")}"`)}, the URL it is served at.`);
+  console.log(`Serve that folder with your site, then use ${cyan(`orb="/${rel.replace(/^public\//, "")}"${theme ? ` theme="${theme}"` : ""}`)}, the URL it is served at.`);
+  if (theme) console.log(dim(`theme="${theme}" is needed: without it, a visitor in ${other} mode would ask for ${other} files that aren't there.`));
 }
 
 // ------------------------------------------------------------------ preview

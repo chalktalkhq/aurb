@@ -521,6 +521,74 @@ console.log("\n-- Names resolve to npm packages on jsDelivr --");
   await ctx.close();
 }
 
+console.log("\n-- An orb made in one theme --");
+{
+  // ferro's fixture is dark only. On a light page it must show its dark files, not stay blank.
+  const { ctx, page, media, errors } = await open(`<aurb-orb id="o" orb="${BASE}/${restFolder}" sizes="80" style="width:80px"></aurb-orb>`, { htmlClass: "light" });
+  await page.waitForTimeout(1800);
+  const st = await status(page);
+  check("falls back to the theme it has", st.file === "idle-dark-80.webm" && st.opacity === "1" && !st.paused, st.file);
+  check("shows that theme's poster", await page.evaluate(() => document.getElementById("o").shadowRoot.querySelector("[part=stack]").style.backgroundImage.startsWith('url("blob:')));
+  const light = [...media].filter((f) => f.includes("light"));
+  check("costs at most its poster and one video in the missing theme", light.every((f) => ["poster-light-80.jpg", "idle-light-80.webm"].includes(f)), light.join(", "));
+  check("a missing theme is not mistaken for a codec problem", st.file.endsWith(".webm"), st.file);
+  // A second orb of the same name on the page already knows.
+  media.clear();
+  await page.evaluate((u) => document.body.insertAdjacentHTML("beforeend", `<aurb-orb id="p" orb="${u}" sizes="80" style="width:80px"></aurb-orb>`), `${BASE}/${restFolder}`);
+  await page.waitForTimeout(1200);
+  check("the next orb of that name asks for nothing in the missing theme", ![...media].some((f) => f.includes("light")) && (await status(page, "p")).file === "idle-dark-80.webm", [...media].join(", "));
+  check("blends as the theme it plays", await page.evaluate(() => document.getElementById("o").shadowRoot.querySelector("[part=stack]").style.mixBlendMode === "screen"));
+  check("and throws nothing", !errors.length, errors.join("; "));
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open(`<aurb-orb id="o" orb="${BASE}/nope" style="width:120px"></aurb-orb>`, { init: () => { window.__errs = []; window.__logs = []; addEventListener("aurberror", (e) => window.__errs.push(e.detail.reason), true); const w = console.warn; console.warn = (...a) => { window.__logs.push(a.join(" ")); w(...a); }; } });
+  await page.waitForTimeout(1500);
+  const r = await page.evaluate(() => ({ errs: window.__errs, logs: window.__logs }));
+  check("a wrong orb says so", r.logs.some((l) => l.includes("nothing at")) && r.errs.includes("missing"), JSON.stringify(r));
+  await ctx.close();
+}
+
+console.log("\n-- A network that fails is not a missing file --");
+for (const how of ["abort", 503]) {
+  // The first try at the poster and at the video fails; nothing about the orb may change because of it.
+  const failed = new Set();
+  const route = { match: /\/chalk\/(poster-dark-160\.jpg|idle-dark-160\.webm)$/, handle: (r) => {
+    const f = r.request().url().split("/").pop();
+    if (!failed.has(f)) { failed.add(f); return how === "abort" ? r.abort("internetdisconnected") : r.fulfill({ status: 503, headers: { "access-control-allow-origin": "*" } }); }
+    return r.continue();
+  } };
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`, { route });
+  await page.waitForTimeout(1200);
+  const first = await status(page);
+  await page.evaluate(() => dispatchEvent(new Event("online")));
+  await page.waitForTimeout(how === "abort" ? 1500 : 6000);
+  const st = await status(page);
+  const tag = how === "abort" ? "offline" : "a 503";
+  check(`${tag}: keeps its theme`, ![...media].some((f) => f.includes("light")), [...media].join(", "));
+  check(`${tag}: keeps VP9`, ![...media].some((f) => f.endsWith(".mp4")), [...media].join(", "));
+  check(`${tag}: recovers by itself`, st.file === "idle-dark-160.webm" && st.opacity === "1" && !st.paused, `${first.file} then ${st.file}`);
+  check(`${tag}: and shows its poster`, await page.evaluate(() => document.getElementById("o").shadowRoot.querySelector("[part=stack]").style.backgroundImage.startsWith('url("blob:')));
+  await ctx.close();
+}
+{
+  // A theme change keeps the old poster up until the new one is in, so it never flashes empty.
+  let hold;
+  const gate = new Promise((r) => (hold = r));
+  const route = { match: /poster-light-160\.jpg$/, handle: async (r) => { await gate; return r.continue(); } };
+  const { ctx, page } = await open(`<aurb-orb id="o" ${src} static style="width:120px"></aurb-orb>`, { route });
+  await page.waitForTimeout(800);
+  const bg = () => page.evaluate(() => document.getElementById("o").shadowRoot.querySelector("[part=stack]").style.backgroundImage);
+  const before = await bg();
+  await page.evaluate(() => { document.documentElement.className = "light"; });
+  await page.waitForTimeout(400);
+  check("a theme change keeps the old poster until the new one loads", (await bg()) === before && before.startsWith('url("blob:'));
+  hold();
+  await page.waitForTimeout(600);
+  check("then shows the new one", (await bg()) !== before && (await bg()).startsWith('url("blob:'));
+  await ctx.close();
+}
+
 await browser.close();
 server.close();
 console.log(`\n${total - failed}/${total} passed.`);

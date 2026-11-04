@@ -26,12 +26,20 @@
   <h1>__NAME__</h1>
   <aurb-orb id="main" orb="__ORB__" sizes="__SIZES__" loading="eager" state="idle" style="width:240px"></aurb-orb>
   <div class="row" id="states"><span class="label">State</span></div>
-  <div class="row"><span class="label">Page theme</span><button data-theme-set="dark">Dark</button><button data-theme-set="light">Light</button></div>
+  <div class="row" id="themes"><span class="label">Page theme</span></div>
   <div class="row" id="speeds"><span class="label">Transition</span></div>
   <div class="sizes" id="small"></div>
   <p class="note" id="weight"></p>
 <script>
-  const STATES = __STATES__, KB = __KB__, SIZES = "__SIZES__".split(",").map(Number), REST = __REST__;
+  const STATES = __STATES__, KB = __KB__, SIZES = "__SIZES__".split(",").map(Number), REST = __REST__, THEMES = __THEMES__;
+  // An orb made in one theme is only shown in that one: on the other, the player would fall back to it anyway.
+  for (const t of THEMES) {
+    const b = document.createElement("button");
+    b.textContent = t === "dark" ? "Dark" : "Light";
+    b.dataset.themeSet = t;
+    document.getElementById("themes").append(b);
+  }
+  if (THEMES.length === 1) document.getElementById("themes").append(Object.assign(document.createElement("span"), { className: "label", textContent: `${THEMES[0]} only` }));
   const orbs = () => document.querySelectorAll("aurb-orb");
   const statesEl = document.getElementById("states");
   for (const s of STATES) {
@@ -77,7 +85,8 @@
   document.querySelectorAll("[data-theme-set]").forEach((b) => {
     b.onclick = () => { document.documentElement.className = b.dataset.themeSet; mark(); };
   });
-  document.documentElement.className = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  const prefers = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  document.documentElement.className = THEMES.includes(prefers) ? prefers : THEMES[0];
   mark();
 </script>
 </body>

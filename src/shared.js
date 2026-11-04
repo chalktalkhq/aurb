@@ -35,7 +35,8 @@ export function detectTheme(forced) {
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-// Every file is fetched whole and played from memory. Static hosts may ignore Range requests, which Safari needs to
+// Resolves to a blob: URL, to 0 when the server says the file isn't there (a 4xx), or to null when it couldn't be
+// reached, which is worth trying again. Every file is fetched whole and played from memory. Static hosts may ignore Range requests, which Safari needs to
 // stream a video, and a loop of a few dozen KB gains nothing from streaming. Kept by URL, so nothing downloads twice,
 // even on a host without cache headers.
 export const blobs = new Map();
@@ -43,7 +44,7 @@ export function load(url, priority) {
   if (!blobs.has(url)) blobs.set(url, fetch(url, { priority })
     .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
     .then((b) => URL.createObjectURL(b))
-    .catch(() => (blobs.delete(url), null)));
+    .catch((e) => (blobs.delete(url), e > 399 && e < 500 ? 0 : null)));
   return blobs.get(url);
 }
 

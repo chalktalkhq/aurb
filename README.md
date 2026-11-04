@@ -87,6 +87,8 @@ These aren't recolours. Each one has its own material and shape, and moves in it
 
 The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served by jsDelivr. A name follows the latest 1.x, so an improved render reaches your site within a week without a code change; pin one with `orb="aurora@1.0.2"`.
 
+Some orbs are made in one theme, marked "dark only" in `npx aurb list`; their copied code sets `theme="dark"`, and they play in that theme on any page, so give one a dark panel on a light page.
+
 Community orbs stay in their maker's own npm package, and the value names it with its exact version: `orb="npm:aurb-orb-nebula@1.0.2"`. Nobody types that: `npx aurb` and the site copy it for you, always at the version that was reviewed, so an update reaches your site only after it is reviewed too. To list one, see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
 
 | `orb` | Character |
@@ -133,7 +135,7 @@ Those are the defaults; each preset changes how it does them.
 | `transition` | `500` | Crossfade in ms, optionally per state: `"500 thinking:250 error:150"` |
 | `hold` | `200` | Minimum ms a state stays, so fast responses don't flicker |
 | `surface` | `auto` | See below |
-| `theme` | `auto` | Follows `.dark`, `.light`, or `data-theme` on `<html>` or `<body>`, then the system |
+| `theme` | `auto` | Follows `.dark`, `.light`, or `data-theme` on `<html>` or `<body>`, then the system. Only that theme downloads. An orb made in one theme always plays in it |
 | `prefetch` | | States to fetch once the page is idle |
 | `loading` | `lazy` | `eager` starts before the page's load event |
 | `sizes` | `sm,md,lg` | Tiers the player may choose from. Leave it alone for automatic, or set one, such as `sizes="sm"`, to force it |
@@ -143,7 +145,7 @@ Those are the defaults; each preset changes how it does them.
 
 **Methods:** `orb.flash("success", 1500)` shows a state, then returns. `orb.prefetch(states)` and `orb.prefetchOn(element, states)` fetch ahead. `orb.refresh()` re-reads the theme and the colour behind the orb, for when your app changes them in a way the orb can't see.
 
-**Events:** `aurbready` when the first frame shows, `aurbstatechange` with `detail.state`, and `aurberror` with `detail.reason`, either `missing` (this orb has no such state) or `blocked` (the browser refused autoplay). In both error cases the current picture stays.
+**Events:** `aurbready` when the first frame shows, `aurbstatechange` with `detail.state`, and `aurberror` with `detail.reason`, either `missing` (this orb has no such state, or no orb is at that name) or `blocked` (the browser refused autoplay). In both error cases the current picture stays. A file that can't be reached, offline or on a server error, isn't an error: the picture stays, and it tries again on coming back online or a few seconds later.
 
 **Styling:** set the size with CSS `width`. The `surface` and `stack` parts are available through `::part()`.
 

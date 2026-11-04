@@ -5,7 +5,7 @@ export type { AurbErrorDetail, AurbOrb, AurbState } from "./aurb.js";
 
 /** The element's own attributes. */
 export interface AurbAttributes {
-  /** A folder on aurb's CDN, such as "aurora", or the URL of a folder you host yourself. */
+  /** An orb's name, such as "aurora", a pinned version, such as "aurora@1.0.2", or the URL of a folder you host yourself. */
   orb: string;
   /** Change it at any time; it crossfades. */
   state?: AurbState | undefined;

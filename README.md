@@ -19,9 +19,21 @@ document.querySelector("aurb-orb").state = "thinking"; // it crossfades
 
 Or with no build step: `<script src="https://cdn.jsdelivr.net/npm/aurb/dist/aurb.global.js" defer></script>`.
 
-There are no files to download, render, or host, and no key. Every orb is free, for any project, including commercial ones. Pick one from [Orbs](#orbs) and the player fetches it from aurb's CDN, cached at the edge nearest your visitor.
+There are no files to download, render, or host, and no key. Every orb is free, for any project, including commercial ones. Pick one from [Orbs](#orbs), or run `npx aurb` to browse them, and the player fetches it from jsDelivr, a free public CDN, at the edge nearest your visitor.
 
-To host the files yourself, set `orb` to the URL of a folder instead: `orb="https://your.site/orbs/aurora"`.
+To host the files yourself, run `npx aurb download aurora --out public/orbs` and set `orb` to the folder's URL: `orb="/orbs/aurora"`.
+
+## Command line
+
+```bash
+npx aurb                   # pick an orb, get its code, copied to your clipboard
+npx aurb add aurora        # the same for one orb: --html, --state thinking, --json
+npx aurb list              # every orb
+npx aurb preview aurora    # play every state in your browser
+npx aurb download aurora   # save the files to host yourself
+```
+
+To make an orb of your own, `npx aurb pack` turns your loops into one, and [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs) explains how to share it with everyone.
 
 ## How it works, and its limits
 
@@ -73,7 +85,7 @@ All of these stay off on Save-Data and 2G, use low network priority where the br
 
 These aren't recolours. Each one has its own material and shape, and moves in its own way in every state. All of them are free.
 
-The value is the orb's name. Files are cached for a day and revalidated in the background, so an improved render reaches your site without a code change.
+The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served by jsDelivr. A name follows the latest 1.x, so an improved render reaches your site within a week without a code change; pin one with `orb="aurora@1.0.2"`. Anyone can add an orb: see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
 
 | `orb` | Character |
 |---|---|

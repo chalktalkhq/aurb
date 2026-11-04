@@ -30,7 +30,8 @@
       "global": ["./dist/global.d.ts"]
     }
   },
-  "files": ["dist"],
+  "bin": { "aurb": "bin/aurb.mjs" },
+  "files": ["dist", "bin"],
   "engines": { "node": ">=18" },
   "scripts": {
     "build": "node scripts/build.mjs",

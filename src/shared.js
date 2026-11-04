@@ -3,10 +3,11 @@
 
 export const ALIASES = { running: "working", busy: "working", loading: "thinking", processing: "thinking", talking: "speaking", recording: "listening", done: "success", failed: "error", sleeping: "asleep", dormant: "asleep", default: "idle" };
 
-// Orbs are plain files on Cloudflare's static hosting: free, unlimited, and cached at the edge. An orb is its name
-// there, such as "aurora", or the URL of a folder you host yourself.
-export const CDN = "https://cdn.aurb.dev";
-export const folder = (orb) => (orb.includes("/") ? orb.replace(/\/$/, "") : `${CDN}/${orb}`);
+// Every orb is its own npm package, @aurb/<name>, served free by jsDelivr from the edge nearest each visitor. An orb
+// is a name, such as "aurora" (the latest 1.x, so improved renders arrive without a code change), a pinned version,
+// such as "aurora@1.0.2", or the URL of a folder you host yourself.
+export const CDN = "https://cdn.jsdelivr.net/npm/@aurb";
+export const folder = (orb) => (orb.includes("/") ? orb.replace(/\/$/, "") : `${CDN}/${orb.includes("@") ? orb : orb + "@1"}`);
 
 export const parseList = (v) => (v || "").split(",").map((s) => s.trim()).filter(Boolean);
 const TIERS = { sm: 80, md: 160, lg: 320, xl: 640 };

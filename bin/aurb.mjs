@@ -1,17 +1,19 @@
 #!/usr/bin/env node
-// npx aurb: find an orb and get the code for it, preview one, download one to host yourself, or pack a new one.
+// npx aurb: find an orb and get the code for it, preview one, download one to host yourself, or make and publish one.
 // No dependencies, so it starts at once. Menus when a person is at a terminal, plain flags and output everywhere else.
 import { spawnSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const CDN = "https://cdn.jsdelivr.net/npm/@aurb";
-const INDEX = process.env.AURB_INDEX || `${CDN}/index@1/index.json`;
+const NPM = "https://cdn.jsdelivr.net/npm";
+const INDEX = process.env.AURB_INDEX || `${NPM}/@aurb/index@1/index.json`;
+const LIST = "https://github.com/chalktalkhq/aurb-orbs";
 const STATES = ["idle", "listening", "thinking", "working", "speaking", "success", "error", "asleep"];
 const THEMES = ["dark", "light"];
 const SIZES = [80, 160, 320];
@@ -31,11 +33,12 @@ const HELP = `${bold("aurb")}: animated orbs for AI products
 Making an orb
   ${cyan("npx aurb pack")} ./loops --name nebula   encode your loops into an orb  ${dim('--note "..."  --xl  --out orbs')}
   ${cyan("npx aurb preview")} orbs/nebula        try it before you share it
-  ${cyan("npx aurb check")} orbs/nebula          what the orbs repo checks on a pull request
+  ${cyan("npx aurb check")} orbs/nebula          the check a submission runs  ${dim("also npm:aurb-orb-nebula@1.0.0")}
+  ${cyan("npx aurb publish")} orbs/nebula        publish it to npm as your own package  ${dim("--dry-run")}
 
   ./loops holds one seamless, square loop per state and theme, named like idle-dark.mp4 and idle-light.mov:
   ${STATES.join(", ")}; dark on black, light on white, all the same length.
-  Share it: https://github.com/chalktalkhq/aurb-orbs
+  Anyone can use it once it's published, as orb="npm:aurb-orb-nebula@1.0.0". To get it listed: ${LIST}
 `;
 
 function die(msg, fix) {
@@ -49,7 +52,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (!a.startsWith("--")) { out._.push(a); continue; }
     const [k, v] = a.slice(2).split("=");
-    const flag = ["html", "react", "json", "xl", "help", "no-open"].includes(k); // these never take a value
+    const flag = ["html", "react", "json", "xl", "help", "no-open", "dry-run"].includes(k); // these never take a value
     out[k] = v ?? (!flag && argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : true);
   }
   return out;
@@ -66,7 +69,28 @@ async function index() {
   }
 }
 
+// What goes in orb="...": a name for our own @aurb orbs, which follow 1.x, and the exact approved version of a
+// community orb's own package, so nobody gets an update that hasn't been reviewed.
+const value = (o) => (o.package ? `npm:${o.package}@${o.version}` : o.name);
+// Where its files are on jsDelivr: the same URL the player builds from that value.
+const base = (o) => (o.package ? `${NPM}/${o.package}@${o.version}` : `${NPM}/@aurb/${o.name}@1`);
+const NPM_REF = /^npm:((?:@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*)@(\d+\.\d+\.\d+[\w.+-]*)$/i;
+
+async function get(url, as = "json") {
+  const r = await fetch(url).catch((e) => ({ ok: false, status: e.message }));
+  if (!r.ok) return null;
+  return as === "json" ? r.json().catch(() => null) : Buffer.from(await r.arrayBuffer());
+}
+
 async function find(name) {
+  const ref = NPM_REF.exec(name); // a package nobody has listed yet, such as one under review
+  if (ref) {
+    const manifest = await get(`${NPM}/${ref[1]}@${ref[2]}/manifest.json`);
+    if (!manifest) die(`${ref[1]}@${ref[2]} has no manifest.json on jsDelivr.`, "Check the package name and its exact version");
+    const pkg = (await get(`${NPM}/${ref[1]}@${ref[2]}/package.json`)) ?? {};
+    return { name: manifest.name, description: pkg.description ?? "", author: pkg.author, package: ref[1], version: ref[2], ...pkg.aurb };
+  }
+  if (name.startsWith("npm:")) die(`${name} needs an exact version.`, "Such as npm:aurb-orb-nebula@1.0.0");
   const orbs = await index();
   const orb = orbs.find((o) => o.name === name);
   if (!orb) {
@@ -84,10 +108,10 @@ function snippet(orb, { html, state = "idle" }) {
   const dist = "https://cdn.jsdelivr.net/npm/aurb/dist";
   if (html) return `${rest ? `<script type="module" src="${dist}/aurb.js"></script>\n<script type="module" src="${dist}/rest.js"></script>` : `<script src="${dist}/aurb.global.js" defer></script>`}
 
-<aurb-orb orb="${orb.name}" state="${state}"${rest ? ' transition="rest"' : ""} style="width:120px"></aurb-orb>`;
+<aurb-orb orb="${value(orb)}" state="${state}"${rest ? ' transition="rest"' : ""} style="width:120px"></aurb-orb>`;
   return `import { Aurb } from "aurb/react";${rest ? '\nimport "aurb/rest";' : ""}
 
-<Aurb orb="${orb.name}" state="${state}"${rest ? ' transition="rest"' : ""} style={{ width: 120 }} />`;
+<Aurb orb="${value(orb)}" state="${state}"${rest ? ' transition="rest"' : ""} style={{ width: 120 }} />`;
 }
 
 function copy(text) {
@@ -111,14 +135,14 @@ const usesReact = () => {
 
 function give(orb, opts) {
   const code = snippet(orb, opts);
-  if (opts.json) return console.log(JSON.stringify({ ...orb, code, install: opts.html ? null : "npm i aurb" }, null, 2));
+  if (opts.json) return console.log(JSON.stringify({ ...orb, orb: value(orb), code, install: opts.html ? null : "npm i aurb" }, null, 2));
   if (!tty) return console.log(code);
   const install = opts.html ? null : installHint();
   const copied = copy(code);
   console.log(`\n${code.split("\n").map((l) => `  ${l}`).join("\n")}\n`);
   console.log(copied ? `${green("✓")} Copied to your clipboard.` : dim("Select the code above to copy it."));
   if (install) console.log(`${dim("First, in this project:")} ${cyan(install)}`);
-  console.log(dim(`See every state: npx aurb preview ${orb.name}\n`));
+  console.log(dim(`See every state: npx aurb preview ${orb.package ? value(orb) : orb.name}\n`));
 }
 
 // ------------------------------------------------------------------ menus
@@ -200,15 +224,15 @@ async function add(name, args) {
 
 async function download(name, args) {
   if (!name) die("Which orb?", "npx aurb download aurora");
-  await find(name);
-  const base = `${CDN}/${name}@1`;
-  const manifest = await (await fetch(`${base}/manifest.json`)).json();
-  const out = path.resolve(String(args.out ?? "orbs"), name);
+  const orb = await find(name), from = base(orb);
+  const manifest = await get(`${from}/manifest.json`);
+  if (!manifest) die(`Couldn't download ${orb.name}'s manifest.json.`, "Try again in a minute");
+  const out = path.resolve(String(args.out ?? "orbs"), orb.name);
   fs.mkdirSync(out, { recursive: true });
   const files = ["manifest.json", ...Object.keys(manifest.kb)];
   let n = 0;
   for (const f of files) {
-    const r = await fetch(`${base}/${f}`);
+    const r = await fetch(`${from}/${f}`);
     if (!r.ok) die(`Couldn't download ${f} (${r.status}).`, "Try again in a minute");
     fs.writeFileSync(path.join(out, f), Buffer.from(await r.arrayBuffer()));
     if (tty) process.stdout.write(`\r${dim(`Downloading ${++n} of ${files.length}`)}`);
@@ -222,7 +246,7 @@ async function download(name, args) {
 
 // Serves the player and a page that plays the orb, from a local folder or from the CDN by name.
 async function preview(target, args) {
-  if (!target) die("Which orb?", "npx aurb preview aurora, or a folder: npx aurb preview orbs/nebula");
+  if (!target) die("Which orb?", "npx aurb preview aurora, a folder: npx aurb preview orbs/nebula, or a package: npm:aurb-orb-nebula@1.0.0");
   const port = Number(args.port ?? 4300);
   const local = fs.existsSync(path.join(target, "manifest.json")) ? path.resolve(target) : null;
   let manifest, orb;
@@ -231,9 +255,9 @@ async function preview(target, args) {
     orb = `http://localhost:${port}/o`;
   } else {
     if (fs.existsSync(target)) die(`${target} has no manifest.json.`, "Make one with npx aurb pack");
-    await find(target);
-    orb = `${CDN}/${target}@1`;
-    manifest = await (await fetch(`${orb}/manifest.json`)).json();
+    orb = base(await find(target));
+    manifest = await get(`${orb}/manifest.json`);
+    if (!manifest) die(`Couldn't load ${target}'s manifest.json.`, "Try again in a minute");
   }
   const dist = path.join(here, "..", "dist");
   if (!fs.existsSync(path.join(dist, "aurb.js"))) die("The player isn't built.", "Run npm run build in the aurb repo");
@@ -329,48 +353,117 @@ async function pack(src, args) {
   const hash = createHash("sha1");
   for (const f of Object.keys(kb).sort()) hash.update(fs.readFileSync(path.join(out, f)));
   fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify({ name, version: hash.digest("hex").slice(0, 8), states: STATES, themes: THEMES, sizes, kb }, null, 2) + "\n");
+  // The orb is your own npm package, aurb-orb-<name>, so it carries your name and its own download counts.
   const pkgFile = path.join(out, "package.json");
   if (!fs.existsSync(pkgFile)) {
     const author = spawnSync("git", ["config", "user.name"], { encoding: "utf8" }).stdout?.trim() || undefined;
     const note = args.note ? String(args.note) : "";
-    fs.writeFileSync(pkgFile, JSON.stringify({ name: `@aurb/${name}`, version: "1.0.0", description: note, author, license: "SEE LICENSE IN LICENSE", aurb: {} }, null, 2) + "\n");
-    if (!note) console.log(`\n${dim("Add a one-line description in")} ${pkgFile}`);
+    fs.writeFileSync(pkgFile, JSON.stringify({ name: `aurb-orb-${name}`, version: "1.0.0", description: note, author, keywords: ["aurb", "aurb-orb"], aurb: {} }, null, 2) + "\n");
+    console.log(`\n${dim(`${note ? "" : "Add a one-line description, and "}choose a licence, in`)} ${pkgFile}`);
   }
-  console.log(`\r${green("✓")} Packed ${bold(name)}: ${Object.keys(kb).length} files, ${(Object.values(kb).reduce((a, b) => a + b, 0) / 1024).toFixed(1)} MB in ${path.relative(process.cwd(), out)}`);
-  console.log(`Try it: ${cyan(`npx aurb preview ${path.relative(process.cwd(), out)}`)}`);
+  const rel = path.relative(process.cwd(), out);
+  console.log(`\r${green("✓")} Packed ${bold(name)}: ${Object.keys(kb).length} files, ${(Object.values(kb).reduce((a, b) => a + b, 0) / 1024).toFixed(1)} MB in ${rel}`);
+  console.log(`Try it: ${cyan(`npx aurb preview ${rel}`)}, then ${cyan(`npx aurb publish ${rel}`)}`);
 }
 
-// What a pull request to the orbs repo must pass. Every problem is listed at once, each with what to do.
-function check(dirs) {
-  if (!dirs.length) die("Which orb folders?", "npx aurb check orbs/nebula");
+// The files of an orb, from a folder or from its npm package on jsDelivr. Fetching every file through jsDelivr also
+// keeps a copy there for good, so an approved version keeps working even if its package is later unpublished.
+async function source(target) {
+  const ref = NPM_REF.exec(target);
+  if (!ref) {
+    const dir = path.resolve(target);
+    const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => fs.statSync(path.join(dir, f)).isFile()) : [];
+    return { label: target, read: (f) => fs.existsSync(path.join(dir, f)) ? fs.readFileSync(path.join(dir, f)) : null, files: async () => Object.fromEntries(files.map((f) => [f, fs.statSync(path.join(dir, f)).size / 1024])) };
+  }
+  const from = `${NPM}/${ref[1]}@${ref[2]}`, cache = {};
+  const read = async (f) => (cache[f] ??= await get(`${from}/${f}`, "bytes"));
+  return {
+    label: `${ref[1]}@${ref[2]}`, pkg: ref[1], read,
+    files: async (names) => {
+      const queue = [...names], out = {};
+      await Promise.all(Array.from({ length: 8 }, async () => { while (queue.length) { const f = queue.shift(), b = await read(f); if (b) out[f] = b.length / 1024; } }));
+      return out;
+    },
+  };
+}
+
+// What a submission must pass, from a folder or a published package. Every problem is listed at once, each with what to do.
+async function check(targets) {
+  if (!targets.length) die("Which orbs?", "npx aurb check orbs/nebula, or a published one: npx aurb check npm:aurb-orb-nebula@1.0.0");
   let failed = 0;
-  for (const dir of dirs) {
-    const name = path.basename(path.resolve(dir));
-    const problems = [];
-    const read = (f) => { try { return JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")); } catch { problems.push(`${f} is missing or isn't valid JSON`); return null; } };
-    const pkg = read("package.json"), manifest = read("manifest.json");
+  for (const target of targets) {
+    if (target.startsWith("npm:") && !NPM_REF.test(target)) { failed++; console.log(`${red("✕")} ${bold(target)}\n  needs an exact version, such as npm:aurb-orb-nebula@1.0.0`); continue; }
+    const src = await source(target), problems = [];
+    const json = async (f) => {
+      const b = await src.read(f);
+      try { if (b) return JSON.parse(String(b)); } catch {}
+      problems.push(`${f} is missing or isn't valid JSON${src.pkg ? " (is the package published at that exact version?)" : ""}`);
+      return null;
+    };
+    const pkg = await json("package.json"), manifest = await json("manifest.json");
+    const name = manifest?.name ?? path.basename(path.resolve(target));
+    if (manifest && !/^[a-z][a-z0-9-]{1,30}$/.test(name)) problems.push(`manifest.json name "${name}" should be lowercase letters, digits and -`);
     if (pkg) {
-      if (pkg.name !== `@aurb/${name}`) problems.push(`package.json name should be "@aurb/${name}", the folder's name`);
+      if (pkg.name !== `aurb-orb-${name}` && pkg.name !== `@aurb/${name}`) problems.push(`package.json name should be "aurb-orb-${name}", after the orb's name in manifest.json`);
+      if (src.pkg && pkg.name !== src.pkg) problems.push(`package.json says ${pkg.name}, but this is ${src.pkg}`);
       if (!pkg.description || pkg.description.length > 160) problems.push("package.json needs a description of one short sentence");
       if (/[–—]/.test(pkg.description ?? "")) problems.push("the description has a long dash; use a comma or a colon");
     }
-    if (manifest) {
-      for (const state of STATES) for (const theme of THEMES) for (const size of SIZES) for (const ext of ["webm", "mp4"]) {
-        if (!fs.existsSync(path.join(dir, `${state}-${theme}-${size}.${ext}`))) problems.push(`missing ${state}-${theme}-${size}.${ext}`);
-      }
-      for (const theme of THEMES) for (const size of SIZES) if (!fs.existsSync(path.join(dir, `poster-${theme}-${size}.jpg`))) problems.push(`missing poster-${theme}-${size}.jpg`);
-    }
+    const needed = [];
+    for (const state of STATES) for (const theme of THEMES) for (const size of SIZES) for (const ext of ["webm", "mp4"]) needed.push(`${state}-${theme}-${size}.${ext}`);
+    for (const theme of THEMES) for (const size of SIZES) needed.push(`poster-${theme}-${size}.jpg`);
+    const files = await src.files([...new Set([...needed, ...Object.keys(manifest?.kb ?? {})])]);
+    if (manifest) for (const f of needed) if (!(f in files)) problems.push(`missing ${f}`);
+    for (const f of Object.keys(manifest?.kb ?? {})) if (!needed.includes(f) && !(f in files)) problems.push(`manifest.json lists ${f}, which is missing`);
     let total = 0;
-    for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
-      const kb = fs.statSync(path.join(dir, f)).size / 1024;
+    for (const [f, kb] of Object.entries(files)) {
       total += kb;
       if (kb > MAX_FILE_KB) problems.push(`${f} is ${Math.round(kb)} KB; keep every file under ${MAX_FILE_KB} KB (a shorter loop, or less detail)`);
     }
     if (total / 1024 > MAX_ORB_MB) problems.push(`the orb is ${(total / 1024).toFixed(1)} MB; keep it under ${MAX_ORB_MB} MB`);
-    if (problems.length) { failed++; console.log(`${red("✕")} ${bold(name)}\n  ${problems.slice(0, 20).join("\n  ")}${problems.length > 20 ? `\n  and ${problems.length - 20} more` : ""}`); }
-    else console.log(`${green("✓")} ${bold(name)}  ${dim(`${(total / 1024).toFixed(1)} MB`)}`);
+    if (src.pkg && manifest) { // a submission: the name must be free, or already this package's
+      const taken = (await index()).find((o) => o.name === name);
+      if (taken && taken.package !== src.pkg) problems.push(`the name "${name}" is taken; choose another in manifest.json and package.json`);
+    }
+    if (problems.length) { failed++; console.log(`${red("✕")} ${bold(src.label)}\n  ${problems.slice(0, 20).join("\n  ")}${problems.length > 20 ? `\n  and ${problems.length - 20} more` : ""}`); }
+    else console.log(`${green("✓")} ${bold(src.label)}  ${dim(`${(total / 1024).toFixed(1)} MB`)}`);
   }
-  if (failed) die(`${failed} of ${dirs.length} not ready.`, "Fix the lines above, then run npx aurb check again");
+  if (failed) die(`${failed} of ${targets.length} not ready.`, "Fix the lines above, then run npx aurb check again");
+}
+
+// Publishes a packed orb as its own npm package. A version is never edited by hand: changed files go up one patch from
+// what npm has, and unchanged files publish nothing. A copy is published, so the folder never changes.
+async function publish(dir, args) {
+  if (!dir || !fs.existsSync(path.join(dir, "package.json"))) die("Which orb folder?", "npx aurb publish orbs/nebula, after npx aurb pack");
+  await check([dir]);
+  const dry = !!args["dry-run"];
+  const npm = (...a) => execNpm(a);
+  const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+  const hash = createHash("sha1");
+  for (const f of fs.readdirSync(dir).filter((f) => f !== "package.json").sort()) hash.update(f).update(fs.readFileSync(path.join(dir, f)));
+  const digest = hash.digest("hex").slice(0, 12);
+  let now = null;
+  try { now = JSON.parse(npm("view", pkg.name, "version", "aurb.hash", "--json").stdout); } catch {} // a 404 is a new orb
+  const version = typeof now === "string" ? now : now?.version;
+  const name = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8")).name;
+  const use = (v) => (pkg.name.startsWith("@aurb/") ? `orb="${name}"` : `orb="npm:${pkg.name}@${v}"`);
+  if (now?.["aurb.hash"] === digest) return console.log(`${green("✓")} ${pkg.name}@${version} already has these files. ${dim(use(version))}`);
+  const next = version ? version.replace(/\d+$/, (n) => +n + 1) : pkg.version;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "aurb-"));
+  fs.cpSync(dir, tmp, { recursive: true });
+  fs.writeFileSync(path.join(tmp, "package.json"), JSON.stringify({ ...pkg, version: next, aurb: { ...pkg.aurb, hash: digest } }, null, 2));
+  if (dry) { fs.rmSync(tmp, { recursive: true, force: true }); return console.log(`Would publish ${bold(`${pkg.name}@${next}`)}  ${dim(use(next))}`); }
+  const r = npm("publish", tmp, "--access", "public", ...(process.env.CI ? ["--provenance"] : []));
+  fs.rmSync(tmp, { recursive: true, force: true });
+  if (r.status) die(`npm couldn't publish ${pkg.name}@${next}.`, (r.stderr || "").trim().split("\n").slice(-3).join("\n  ") || "Run npm login, then try again");
+  console.log(`${green("✓")} Published ${bold(`${pkg.name}@${next}`)}. Anyone can use it now: ${cyan(use(next))}`);
+  if (!pkg.name.startsWith("@aurb/")) console.log(dim(`To list it on the site and in npx aurb, submit npm:${pkg.name}@${next} at ${LIST}`));
+}
+
+function execNpm(a) {
+  const r = spawnSync("npm", a, { encoding: "utf8", shell: process.platform === "win32" });
+  if (a[0] === "view" && r.status) throw new Error(r.stderr);
+  return r;
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -382,6 +475,7 @@ else if (command === "list" || command === "ls") await list(args);
 else if (command === "preview") await preview(target, args);
 else if (command === "download") await download(target, args);
 else if (command === "pack") await pack(target, args);
-else if (command === "check") check([target, ...more].filter(Boolean));
+else if (command === "check") await check([target, ...more].filter(Boolean));
+else if (command === "publish") await publish(target, args);
 else if (STATES.length && /^[a-z][a-z0-9-]*$/.test(command) && !target) await add(command, args); // npx aurb aurora
 else die(`Unknown command "${command}".`, "Run npx aurb --help");

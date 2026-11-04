@@ -47,9 +47,10 @@ const names = () => {
   URL.createObjectURL = (b) => { const u = make(b); if (b.__url) window.__names[u] = b.__url; return u; };
 };
 
-async function open(body, { htmlClass = "dark", ctxOptions = {}, init, esm } = {}) {
+async function open(body, { htmlClass = "dark", ctxOptions = {}, init, esm, route } = {}) {
   global.__page = pageHtml(body, htmlClass, esm);
   const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, deviceScaleFactor: 1, ...ctxOptions });
+  if (route) await ctx.route(route.match, route.handle);
   const page = await ctx.newPage();
   const media = new Set();
   page.on("request", (r) => { if (/\.(mp4|webm|jpg)/.test(r.url())) media.add(r.url().split("?")[0].split("/").pop()); });
@@ -498,6 +499,26 @@ console.log("\n-- Rest transitions --");
     check("without transition=rest it crossfades as before", seen.map(name).join() === "idle,thinking" && ![...media].some((m) => /-(out|in)-/.test(m)), seen.map(name).join(", "));
     await ctx.close();
   }
+}
+
+console.log("\n-- Names resolve to npm packages on jsDelivr --");
+{
+  // jsDelivr is stood in for by the fixtures, so this checks only which URL each kind of name builds.
+  const asked = [];
+  const route = { match: "https://cdn.jsdelivr.net/npm/**", handle: (r) => {
+    const url = r.request().url();
+    asked.push(url);
+    const f = path.join(blob, url.split("/").pop());
+    return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), headers: { "access-control-allow-origin": "*", "content-type": TYPES[path.extname(f).slice(1)] } }) : r.fulfill({ status: 404 });
+  } };
+  const { ctx, page } = await open(`<aurb-orb id="o" orb="npm:aurb-orb-nebula@1.0.2" style="width:120px"></aurb-orb><aurb-orb id="p" orb="chalk" static style="width:120px"></aurb-orb><aurb-orb id="q" orb="chalk@1.0.2" static style="width:120px"></aurb-orb><aurb-orb id="r" orb="npm:@someone/orb@2.0.0" static style="width:120px"></aurb-orb>`, { route });
+  await page.waitForTimeout(1500);
+  const has = (prefix) => asked.some((u) => u.startsWith(prefix));
+  check("npm: plays from that package", has("https://cdn.jsdelivr.net/npm/aurb-orb-nebula@1.0.2/idle-dark-160.webm") && (await status(page)).file === "idle-dark-160.webm", asked[0]);
+  check("npm: works with a scoped package", has("https://cdn.jsdelivr.net/npm/@someone/orb@2.0.0/poster-dark-160.jpg"));
+  check("a bare name is @aurb at the latest 1.x", has("https://cdn.jsdelivr.net/npm/@aurb/chalk@1/poster-dark-160.jpg"));
+  check("a pinned name is @aurb at that version", has("https://cdn.jsdelivr.net/npm/@aurb/chalk@1.0.2/poster-dark-160.jpg"));
+  await ctx.close();
 }
 
 await browser.close();

@@ -3,11 +3,11 @@
 
 export const ALIASES = { running: "working", busy: "working", loading: "thinking", processing: "thinking", talking: "speaking", recording: "listening", done: "success", failed: "error", sleeping: "asleep", dormant: "asleep", default: "idle" };
 
-// Every orb is its own npm package, @aurb/<name>, served free by jsDelivr from the edge nearest each visitor. An orb
-// is a name, such as "aurora" (the latest 1.x, so improved renders arrive without a code change), a pinned version,
-// such as "aurora@1.0.2", or the URL of a folder you host yourself.
-export const CDN = "https://cdn.jsdelivr.net/npm/@aurb";
-export const folder = (orb) => (orb.includes("/") ? orb.replace(/\/$/, "") : `${CDN}/${orb.includes("@") ? orb : orb + "@1"}`);
+// Every orb is an npm package, served free by jsDelivr from the edge nearest each visitor. An orb is a name, such as
+// "aurora" (@aurb/aurora at the latest 1.x, so improved renders arrive without a code change), a pinned version, such
+// as "aurora@1.0.2", any npm package, such as "npm:aurb-orb-nebula@1.0.2", or the URL of a folder you host yourself.
+export const NPM = "https://cdn.jsdelivr.net/npm";
+export const folder = (orb) => orb.startsWith("npm:") ? `${NPM}/${orb.slice(4).replace(/\/$/, "")}` : orb.includes("/") ? orb.replace(/\/$/, "") : `${NPM}/@aurb/${orb.includes("@") ? orb : orb + "@1"}`;
 
 export const parseList = (v) => (v || "").split(",").map((s) => s.trim()).filter(Boolean);
 const TIERS = { sm: 80, md: 160, lg: 320, xl: 640 };

@@ -12,7 +12,7 @@ export interface AurbStates {
 export type AurbState = keyof AurbStates;
 
 export interface PrefetchOptions {
-  /** An orb's name, such as "aurora", a pinned version, such as "aurora@1.0.2", or the URL of a folder you host yourself. */
+  /** An orb's name, such as "aurora", a pinned version, such as "aurora@1.0.2", a community orb's npm package, such as "npm:aurb-orb-nebula@1.0.2", or the URL of a folder you host yourself. */
   orb: string;
   states: AurbState | readonly AurbState[];
   /** Defaults to the page's current theme. */

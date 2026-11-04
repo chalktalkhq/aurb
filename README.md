@@ -33,7 +33,7 @@ npx aurb preview aurora    # play every state in your browser
 npx aurb download aurora   # save the files to host yourself
 ```
 
-To make an orb of your own, `npx aurb pack` turns your loops into one, and [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs) explains how to share it with everyone.
+To make an orb of your own, `npx aurb pack` turns your loops into one and `npx aurb publish` puts it on npm as your own package. [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs) explains how to get it listed.
 
 ## How it works, and its limits
 
@@ -85,7 +85,9 @@ All of these stay off on Save-Data and 2G, use low network priority where the br
 
 These aren't recolours. Each one has its own material and shape, and moves in its own way in every state. All of them are free.
 
-The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served by jsDelivr. A name follows the latest 1.x, so an improved render reaches your site within a week without a code change; pin one with `orb="aurora@1.0.2"`. Anyone can add an orb: see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
+The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served by jsDelivr. A name follows the latest 1.x, so an improved render reaches your site within a week without a code change; pin one with `orb="aurora@1.0.2"`.
+
+Community orbs stay in their maker's own npm package, and the value names it with its exact version: `orb="npm:aurb-orb-nebula@1.0.2"`. Nobody types that: `npx aurb` and the site copy it for you, always at the version that was reviewed, so an update reaches your site only after it is reviewed too. To list one, see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
 
 | `orb` | Character |
 |---|---|
@@ -126,7 +128,7 @@ Those are the defaults; each preset changes how it does them.
 
 | Attribute | Default | Meaning |
 |---|---|---|
-| `orb` | | Which orb, such as `aurora`, or the URL of a folder you host |
+| `orb` | | Which orb: a name such as `aurora`, a package such as `npm:aurb-orb-nebula@1.0.2`, or the URL of a folder you host |
 | `state` | `idle` | Change it at any time; the newest request wins |
 | `transition` | `500` | Crossfade in ms, optionally per state: `"500 thinking:250 error:150"` |
 | `hold` | `200` | Minimum ms a state stays, so fast responses don't flicker |

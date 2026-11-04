@@ -464,14 +464,20 @@ console.log("\n-- Rest transitions --");
 {
   // A state change on a solid orb walks through the rest pose, each step joined on a segment boundary.
   const tag = (extra) => `<aurb-orb id="o" orb="${BASE}/${restFolder}" sizes="80" ${extra} style="width:80px"></aurb-orb>`;
+  // Each step is read at the moment of its cut, when the player raises the new video: a MutationObserver runs in the
+  // same task. Polling instead reads the clock up to a frame and a timer late, which looked like a late join.
   const watch = (page) => page.evaluate(async () => {
-    const o = document.getElementById("o"), out = [];
-    const top = () => [...o.shadowRoot.querySelectorAll("video")].find((v) => v.style.zIndex === "1");
-    o.state = "thinking";
-    for (const end = performance.now() + 3500; performance.now() < end; await new Promise((r) => setTimeout(r, 10))) {
-      const v = top(), f = (window.__names[v?.src] ?? v?.src)?.split("/").pop();
+    const o = document.getElementById("o"), out = [], videos = [...o.shadowRoot.querySelectorAll("video")];
+    const note = () => {
+      const v = videos.find((v) => v.style.zIndex === "1"), f = (window.__names[v?.src] ?? v?.src)?.split("/").pop();
       if (f && f !== out.at(-1)?.f) out.push({ f, t: v.currentTime });
-    }
+    };
+    const mo = new MutationObserver(note);
+    for (const v of videos) mo.observe(v, { attributes: true, attributeFilter: ["style", "src"] });
+    note();
+    o.state = "thinking";
+    await new Promise((r) => setTimeout(r, 3500));
+    mo.disconnect();
     return out;
   });
   const name = (s) => s.f.replace(/-(dark|light)-\d+\.\w+$/, "");

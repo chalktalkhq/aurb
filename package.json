@@ -1,45 +1,104 @@
 {
   "name": "@aurb/player",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Animated orbs for AI products: multi-state, smooth transitions, under 4 KB, and it never blocks your page.",
-  "keywords": ["orb", "blob", "ai", "assistant", "animation", "web-component", "voice-ui", "siri", "loading", "react"],
+  "keywords": [
+    "orb",
+    "blob",
+    "ai",
+    "assistant",
+    "animation",
+    "web-component",
+    "voice-ui",
+    "siri",
+    "loading",
+    "react"
+  ],
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/chalktalkhq/aurb.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chalktalkhq/aurb.git"
+  },
   "homepage": "https://github.com/chalktalkhq/aurb#readme",
   "bugs": "https://github.com/chalktalkhq/aurb/issues",
   "type": "module",
-  "sideEffects": ["./dist/aurb.js", "./dist/aurb.global.js", "./dist/react.js", "./dist/rest.js"],
+  "sideEffects": [
+    "./dist/aurb.js",
+    "./dist/aurb.global.js",
+    "./dist/react.js",
+    "./dist/rest.js"
+  ],
   "main": "./dist/aurb.js",
   "module": "./dist/aurb.js",
   "types": "./dist/aurb.d.ts",
   "unpkg": "./dist/aurb.global.js",
   "jsdelivr": "./dist/aurb.global.js",
   "exports": {
-    ".": { "types": "./dist/aurb.d.ts", "default": "./dist/aurb.js" },
-    "./react": { "types": "./dist/react.d.ts", "default": "./dist/react.js" },
-    "./prefetch": { "types": "./dist/prefetch.d.ts", "default": "./dist/prefetch.js" },
-    "./rest": { "types": "./dist/rest.d.ts", "default": "./dist/rest.js" },
-    "./global": { "types": "./dist/global.d.ts", "default": "./dist/aurb.global.js" },
+    ".": {
+      "types": "./dist/aurb.d.ts",
+      "default": "./dist/aurb.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./prefetch": {
+      "types": "./dist/prefetch.d.ts",
+      "default": "./dist/prefetch.js"
+    },
+    "./rest": {
+      "types": "./dist/rest.d.ts",
+      "default": "./dist/rest.js"
+    },
+    "./global": {
+      "types": "./dist/global.d.ts",
+      "default": "./dist/aurb.global.js"
+    },
     "./package.json": "./package.json"
   },
   "typesVersions": {
     "*": {
-      "react": ["./dist/react.d.ts"],
-      "prefetch": ["./dist/prefetch.d.ts"],
-      "rest": ["./dist/rest.d.ts"],
-      "global": ["./dist/global.d.ts"]
+      "react": [
+        "./dist/react.d.ts"
+      ],
+      "prefetch": [
+        "./dist/prefetch.d.ts"
+      ],
+      "rest": [
+        "./dist/rest.d.ts"
+      ],
+      "global": [
+        "./dist/global.d.ts"
+      ]
     }
   },
-  "bin": { "aurb": "bin/aurb.mjs" },
-  "files": ["dist", "bin"],
-  "engines": { "node": ">=18" },
+  "bin": {
+    "aurb": "bin/aurb.mjs"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node scripts/build.mjs && tsc -p test/types && node test/browser.mjs",
     "prepublishOnly": "npm test"
   },
-  "peerDependencies": { "@types/react": ">=18", "react": ">=18" },
-  "peerDependenciesMeta": { "@types/react": { "optional": true }, "react": { "optional": true } },
+  "peerDependencies": {
+    "@types/react": ">=18",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@types/react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@types/react": "^19.0.0",

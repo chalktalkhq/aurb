@@ -81,7 +81,8 @@ async function get(url, as = "json") {
 async function index({ soft } = {}) {
   let orbs;
   try { orbs = /^https?:/.test(INDEX) ? await get(INDEX) : JSON.parse(fs.readFileSync(INDEX, "utf8")); } catch {} // a local list, for trying orbs before they're published
-  if (Array.isArray(orbs)) return orbs.filter((o) => o && NAME.test(o.name ?? ""));
+  // A community entry plays from its package at one exact version: one without both can't be played, so it's left out.
+  if (Array.isArray(orbs)) return orbs.filter((o) => o && NAME.test(o.name ?? "") && (!o.package || NPM_REF.test(value(o))));
   if (soft) return null;
   die("Couldn't load the list of orbs.", orbs === undefined ? OFFLINE : `${INDEX} isn't a list of orbs. Try again in a minute`);
 }

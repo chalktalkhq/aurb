@@ -453,15 +453,17 @@ async function publish(dir, args) {
   fs.cpSync(dir, tmp, { recursive: true });
   fs.writeFileSync(path.join(tmp, "package.json"), JSON.stringify({ ...pkg, version: next, aurb: { ...pkg.aurb, hash: digest } }, null, 2));
   if (dry) { fs.rmSync(tmp, { recursive: true, force: true }); return console.log(`Would publish ${bold(`${pkg.name}@${next}`)}  ${dim(use(next))}`); }
+  console.log(`Publishing ${bold(`${pkg.name}@${next}`)}`);
   const r = npm("publish", tmp, "--access", "public", ...(process.env.CI ? ["--provenance"] : []));
   fs.rmSync(tmp, { recursive: true, force: true });
-  if (r.status) die(`npm couldn't publish ${pkg.name}@${next}.`, (r.stderr || "").trim().split("\n").slice(-3).join("\n  ") || "Run npm login, then try again");
+  if (r.status) die(`npm couldn't publish ${pkg.name}@${next}.`, "See npm's message above. Not logged in? Run npm login, then try again");
   console.log(`${green("✓")} Published ${bold(`${pkg.name}@${next}`)}. Anyone can use it now: ${cyan(use(next))}`);
   if (!pkg.name.startsWith("@aurb/")) console.log(dim(`To list it on the site and in npx aurb, submit npm:${pkg.name}@${next} at ${LIST}`));
 }
 
+// A publish talks to you directly, so npm can show its sign-in link or ask for a 2FA code.
 function execNpm(a) {
-  const r = spawnSync("npm", a, { encoding: "utf8", shell: process.platform === "win32" });
+  const r = spawnSync("npm", a, { encoding: "utf8", shell: process.platform === "win32", stdio: a[0] === "publish" ? "inherit" : "pipe" });
   if (a[0] === "view" && r.status) throw new Error(r.stderr);
   return r;
 }

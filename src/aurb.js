@@ -178,7 +178,7 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
     const state = ALIASES[this.state] ?? this.state;
     const url = file(src, state, theme, size, !this.#mp4Only && supportsWebm() ? "webm" : "mp4");
     if (url === this.#shown) return;
-    // aurb/rest can take a change over: solid orbs move through a rest pose instead of crossfading.
+    // @aurb/player/rest can take a change over: solid orbs move through a rest pose instead of crossfading.
     if (AurbOrb.rest?.(this, url, this.#switch.bind(this))) return;
     // Wait for a fade to finish: the next video takes the element underneath it, and swapping that
     // mid-fade leaves a hole in the picture. The hold also stops fast responses flickering past.
@@ -241,7 +241,7 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
       if (e.name === "NotAllowedError") return this.#emit("aurberror", { state, url, reason: "blocked" });
       // VP9 may be advertised and still fail, so try H.264 once. If that fails too, the file is just
       // missing: VP9 was never the problem, so keep it, and the current picture stays.
-      // A rest sheet that fails is a missing file, not a codec: aurb/rest falls back to a crossfade instead.
+      // A rest sheet that fails is a missing file, not a codec: @aurb/player/rest falls back to a crossfade instead.
       if (!join && url.endsWith("webm")) { this.#mp4Only = true; return this.refresh(); }
       this.#mp4Only = false;
       warn(`${this.getAttribute("orb")}: no ${state}`);

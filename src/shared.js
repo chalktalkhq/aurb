@@ -1,5 +1,5 @@
 // What the player and the standalone prefetch entry have in common. No side effects, and no
-// reference to the element, so `aurb/prefetch` stays a few hundred bytes.
+// reference to the element, so `@aurb/player/prefetch` stays a few hundred bytes.
 
 export const ALIASES = { running: "working", busy: "working", loading: "thinking", processing: "thinking", talking: "speaking", recording: "listening", done: "success", failed: "error", sleeping: "asleep", dormant: "asleep", default: "idle" };
 

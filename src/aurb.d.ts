@@ -2,7 +2,7 @@
  * Every state an orb can be in. Add your own from aurb.config.json with declaration merging, which
  * `aurb build` writes for you:
  *
- *     declare module "aurb" { interface AurbStates { celebrate: true } }
+ *     declare module "@aurb/player" { interface AurbStates { celebrate: true } }
  */
 export interface AurbStates {
   idle: true; listening: true; thinking: true; working: true; speaking: true; success: true; error: true; asleep: true;

@@ -10,7 +10,7 @@
 # tag and GitHub release if they're missing. That is how a failed publish is retried, and how the tag and release
 # for a version published by hand are created.
 #
-# npm auth is trusted publishing (OIDC): no token is stored anywhere. On npmjs.com, the aurb package's settings list
+# npm auth is trusted publishing (OIDC): no token is stored anywhere. On npmjs.com, the @aurb/player package's settings list
 # this repository and release.yml as its trusted publisher. npm only allows that on a package that already exists, so
 # the very first version is published by hand.
 name: Release
@@ -75,11 +75,11 @@ jobs:
           version="$(node -p 'require("./package.json").version')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          # A prerelease (1.2.0-beta.1) goes to the next dist-tag, so npm install aurb keeps getting the latest stable.
+          # A prerelease (1.2.0-beta.1) goes to the next dist-tag, so npm install @aurb/player keeps getting the latest stable.
           case "$version" in *-*) echo "dist_tag=next" >> "$GITHUB_OUTPUT" ;; *) echo "dist_tag=latest" >> "$GITHUB_OUTPUT" ;; esac
-          if npm view "aurb@$version" version > /dev/null 2>&1; then
+          if npm view "@aurb/player@$version" version > /dev/null 2>&1; then
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::aurb@$version is already on npm, nothing to publish"
+            echo "::notice::@aurb/player@$version is already on npm, nothing to publish"
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi

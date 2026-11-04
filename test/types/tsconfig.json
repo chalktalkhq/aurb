@@ -11,10 +11,10 @@
     "lib": ["es2022", "dom"],
     "types": [],
     "paths": {
-      "aurb": ["../../dist/aurb.d.ts"],
-      "aurb/react": ["../../dist/react.d.ts"],
-      "aurb/prefetch": ["../../dist/prefetch.d.ts"],
-      "aurb/global": ["../../dist/global.d.ts"]
+      "@aurb/player": ["../../dist/aurb.d.ts"],
+      "@aurb/player/react": ["../../dist/react.d.ts"],
+      "@aurb/player/prefetch": ["../../dist/prefetch.d.ts"],
+      "@aurb/player/global": ["../../dist/global.d.ts"]
     }
   },
   "include": ["*.tsx", "*.ts"]

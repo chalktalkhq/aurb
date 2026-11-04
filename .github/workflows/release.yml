@@ -1,5 +1,6 @@
 # Publishing a GitHub release tagged v<version> publishes that version to npm, with provenance, once the tests pass.
-# Needs an npm automation token as the NPM_TOKEN secret.
+# No token: npm trusts this workflow through Trusted Publishing (set on npmjs.com under aurb, Settings, Trusted
+# Publisher: GitHub Actions, chalktalkhq/aurb, release.yml). That needs npm 11.5.1 or later.
 name: Release
 on:
   release:
@@ -20,15 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # npm provenance: the package links back to this commit
+      id-token: write # Trusted Publishing and provenance: npm checks this run's identity, and the package links back to it
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm, registry-url: "https://registry.npmjs.org" }
       - name: The tag matches package.json
         run: test "${{ github.event.release.tag_name }}" = "v$(node -p 'require("./package.json").version')"
+      - run: npm install -g npm@11
       - run: npm ci
       - run: npm run build
-      - run: npm publish --provenance --access public --ignore-scripts # tested above, on Windows
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --access public --ignore-scripts # tested above, on Windows

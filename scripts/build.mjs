@@ -4,18 +4,19 @@ import { build } from "esbuild";
 import fs from "node:fs";
 import { gzipSync } from "node:zlib";
 
-const BUDGET = { player: 4096, prefetch: 1024, react: 500 };
+// rest is opt-in, for solid orbs only, so the player itself stays inside its 4 KB.
+const BUDGET = { player: 4096, prefetch: 1100, react: 500, rest: 900 }; // rest: 900 since it holds each sheet on its last frame, so a busy page can never see one wrap round
 fs.rmSync("dist", { recursive: true, force: true });
 
 const common = { bundle: true, minify: true, target: "es2022", legalComments: "none", logLevel: "warning" };
 // Split, so the player and the standalone prefetch entry share one set of prefetched files.
-await build({ ...common, entryPoints: ["src/aurb.js", "src/prefetch.js"], outdir: "dist", format: "esm", splitting: true, chunkNames: "shared" });
+await build({ ...common, entryPoints: ["src/aurb.js", "src/prefetch.js", "src/rest.js"], outdir: "dist", format: "esm", splitting: true, chunkNames: "shared" });
 await build({ ...common, entryPoints: ["src/aurb.js"], outfile: "dist/aurb.global.js", format: "iife", globalName: "aurb" });
 await build({ ...common, entryPoints: ["src/react.js"], outfile: "dist/react.js", format: "esm", external: ["react", "./aurb.js"], banner: { js: '"use client";' } });
-for (const f of ["aurb", "react", "prefetch", "global"]) fs.copyFileSync(`src/${f}.d.ts`, `dist/${f}.d.ts`);
+for (const f of ["aurb", "react", "prefetch", "global", "rest"]) fs.copyFileSync(`src/${f}.d.ts`, `dist/${f}.d.ts`);
 
 const gz = (...files) => gzipSync(Buffer.concat(files.map((f) => fs.readFileSync(`dist/${f}`))), { level: 9 }).length;
-const sizes = { player: gz("aurb.js", "shared.js"), prefetch: gz("prefetch.js", "shared.js"), react: gz("react.js") };
+const sizes = { player: gz("aurb.js", "shared.js"), prefetch: gz("prefetch.js", "shared.js"), react: gz("react.js"), rest: gz("rest.js") }; // on top of the player, whose shared code it reuses
 let over = false;
 for (const [name, bytes] of Object.entries(sizes)) {
   console.log(`${name.padEnd(9)} ${String(bytes).padStart(5)} B gzip  (budget ${BUDGET[name]})`);

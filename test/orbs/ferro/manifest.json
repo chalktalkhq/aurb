@@ -1,0 +1,116 @@
+{
+  "name": "ferro",
+  "version": "f22724ec",
+  "generator": 8,
+  "states": [
+    "idle",
+    "thinking"
+  ],
+  "themes": [
+    "dark"
+  ],
+  "sizes": [
+    80
+  ],
+  "config": {
+    "style": "ferro",
+    "colors": [
+      "#eef3ff",
+      "#ff2a14"
+    ],
+    "stateColors": {},
+    "customStates": {
+      "idle": {
+        "field": 0.05,
+        "bloom": 0.6,
+        "arm": 0.35,
+        "tint": "#ff3a1a"
+      },
+      "listening": {
+        "field": 0.03,
+        "arm": 0,
+        "stretch": 0.22,
+        "ripple": 0.07,
+        "lift": 0.15,
+        "tint": "#2f8bff"
+      },
+      "thinking": {
+        "field": 0.04,
+        "arm": 0,
+        "roam": 0.5,
+        "stretch": 0.26,
+        "screw": 0.13,
+        "swing": 2.4,
+        "tint": "#a64dff"
+      },
+      "working": {
+        "field": 0.04,
+        "arm": 0,
+        "stretch": 0.2,
+        "screw": 0.12,
+        "screwN": 3,
+        "tint": "#ff9a1a"
+      },
+      "speaking": {
+        "field": 0.02,
+        "arm": 0,
+        "ripple": 0.08,
+        "lift": 0.25,
+        "tint": "#ff3d7f"
+      },
+      "success": {
+        "field": 0,
+        "arm": 0,
+        "roll": 0.09,
+        "rollN": 1,
+        "heat": 0.9,
+        "tint": "#1fe07a"
+      },
+      "error": {
+        "field": 0.06,
+        "arm": 0,
+        "stab": 1,
+        "shake": 0.03,
+        "heat": 1.4,
+        "tint": "#ff1212"
+      },
+      "asleep": {
+        "field": 0,
+        "dim": 0.45,
+        "arm": 0.12,
+        "squash": 0.1,
+        "heat": 0.2,
+        "tint": "#2a3cff"
+      }
+    },
+    "detail": 1,
+    "energy": 1,
+    "glow": 1,
+    "wobble": 0.024,
+    "softness": 1,
+    "speed": 1,
+    "seconds": 2,
+    "fps": 24,
+    "crf": 27
+  },
+  "kb": {
+    "idle-dark-80.mp4": 6,
+    "idle-dark-80.webm": 6,
+    "idle-in-dark-80.mp4": 5,
+    "idle-in-dark-80.webm": 4,
+    "idle-out-dark-80.mp4": 5,
+    "idle-out-dark-80.webm": 5,
+    "poster-dark-80.jpg": 2,
+    "rest-dark-80.mp4": 3,
+    "rest-dark-80.webm": 2,
+    "thinking-dark-80.mp4": 6,
+    "thinking-dark-80.webm": 7,
+    "thinking-in-dark-80.mp4": 5,
+    "thinking-in-dark-80.webm": 6,
+    "thinking-out-dark-80.mp4": 6,
+    "thinking-out-dark-80.webm": 7
+  },
+  "rest": {
+    "segment": 0.5
+  }
+}

@@ -1,32 +1,27 @@
 # aurb
 
-Animated orbs for AI products. Multi-state, smooth transitions, a 3.6 KB player, and it never blocks your page.
+Animated orbs for AI products. Multi-state, smooth transitions, a 4 KB player, and it never blocks your page.
 
 ```bash
 npm i aurb
-npx aurb add aurora --states idle,thinking,working
 ```
-
-With a bundler:
 
 ```js
 import "aurb";
 ```
 
-Or with no build step, using the copy `aurb add` puts next to your orb:
-
 ```html
-<script src="/aurb/aurora-1a2b3c4d/aurb.global.js" defer></script>
-```
-
-Then, either way:
-
-```html
-<aurb-orb src="/aurb/aurora-1a2b3c4d" prefetch="thinking" style="width:120px"></aurb-orb>
+<aurb-orb orb="aurora" prefetch="thinking" style="width:120px"></aurb-orb>
 ```
 ```js
 document.querySelector("aurb-orb").state = "thinking"; // it crossfades
 ```
+
+Or with no build step: `<script src="https://cdn.jsdelivr.net/npm/aurb/dist/aurb.global.js" defer></script>`.
+
+There are no files to download, render, or host, and no key. Every orb is free, for any project, including commercial ones. Pick one from [Orbs](#orbs) and the player fetches it from aurb's CDN, cached at the edge nearest your visitor.
+
+To host the files yourself, set `orb` to the URL of a folder instead: `orb="https://your.site/orbs/aurora"`.
 
 ## How it works, and its limits
 
@@ -39,16 +34,7 @@ aurb plays small pre-rendered video loops. Browsers decode video away from the m
 
 Tested in Chrome on Windows. Safari and iOS are not yet tested.
 
-## Pay only for what you use
-
-There is no giant package of videos. `npm i aurb` installs the player and the command line tool, and `aurb add` renders only what you ask for into your own project.
-
-| You want | What happens |
-|---|---|
-| One orb, one state | `aurb add chalk --states idle --themes dark` makes just that: one file per size |
-| A small avatar | The player picks the smallest size that stays sharp. 160px is about 40% fewer bytes than 320px. If the orb grows, it moves up to a sharper file |
-| Dark mode only | `--themes dark`; the other theme is never rendered |
-| Any modern browser | VP9, about 40% smaller than H.264. H.264 is the automatic fallback |
+## Only what is on screen
 
 At runtime, the player only ever fetches:
 
@@ -59,13 +45,15 @@ At runtime, the player only ever fetches:
 
 Once on screen, only one video decodes per orb, and it pauses when scrolled away or when the tab is hidden.
 
+It picks the smallest size that stays sharp for the orb's width and the screen, compresses tiny ones harder where nobody can see it, and moves up to a sharper file if the orb grows. VP9 is used where supported, about 40% smaller than H.264, which is the automatic fallback.
+
 ## Prefetching
 
 The first switch to a new state has to download it first. Prefetching took that from about 424 ms to 48 ms on slow 4G in our tests. Choose by how sure you are that a state will be needed:
 
 ```html
 <!-- Very likely: fetch once the page is idle -->
-<aurb-orb src="..." prefetch="thinking,working"></aurb-orb>
+<aurb-orb orb="aurora" prefetch="thinking,working"></aurb-orb>
 ```
 ```js
 // Likely: fetch when someone shows intent, such as hovering the send button
@@ -76,106 +64,57 @@ orb.prefetch(["thinking"]);
 
 // On the page before, without shipping the player to it (about 1 KB)
 import { prefetch } from "aurb/prefetch";
-prefetch({ src: "/aurb/aurora-1a2b3c4d", states: "idle", width: 120 });
+prefetch({ orb: "aurora", states: "idle", width: 120 });
 ```
 
-All of these stay off on Save-Data and 2G, use low network priority where the browser supports it, and never fetch a file twice. Prefetched files stay in memory until the page unloads, so a state costs its file size (about 40 to 70 KB) once fetched. On another origin, your host must allow CORS, or prefetch falls back to normal loading.
+All of these stay off on Save-Data and 2G, use low network priority where the browser supports it, and never fetch a file twice. Prefetched files stay in memory until the page unloads, so a state costs its file size (about 40 to 70 KB) once fetched.
 
-## Presets
+## Orbs
 
-Run `npx aurb presets`, or `npx aurb gallery` for a picture of all of them.
+These aren't recolours. Each one has its own material and shape, and moves in its own way in every state. All of them are free.
 
-| Preset | Look |
+The value is the orb's name. Files are cached for a day and revalidated in the background, so an improved render reaches your site without a code change.
+
+| `orb` | Character |
 |---|---|
-| `chalk` | Monochrome silk. The most premium default |
-| `pearl` | Clear, minimal glass |
-| `mist` | Soft monochrome vapour |
-| `lattice` | A sphere of fine dots |
-| `aurora` | Violet into cyan |
-| `nova` | Pink, violet, blue |
-| `ember` | Warm coral into amber |
-| `lagoon` | Cyan and green silk |
-| `iris` | Soft violet silk |
-| `rose` | Pink glass |
-| `moss` | Green and teal vapour |
-| `signal` | Blue dots |
-
-Make any of them yours. `aurb draft` gives you a still sheet in seconds, so you can judge a look before rendering:
-
-```bash
-npx aurb draft aurora --color "#ff5ca8,#ffb020"
-npx aurb add aurora --color "#ff5ca8,#ffb020" --detail 1.4 --glow 1.5
-```
-
-| Flag | Default | Effect |
-|---|---|---|
-| `--style` | `silk` | `silk`, `glass`, `smoke`, `plasma`, `dots` |
-| `--color` | none | One or more hex colours; none is monochrome |
-| `--color-dark`, `--color-light` | | Different colours per theme |
-| `--detail` | `1` | More or fewer folds |
-| `--energy` | `1` | Overall brightness |
-| `--glow` | `1` | The halo outside the ball |
-| `--wobble` | `0.024` | Outline movement. Above 0.08 reads as jelly |
-| `--softness` | `1` | Edge softness |
-| `--speed` | `1` | Speed of each state's motion |
-| `--state-color` | | `error=#f97316,success=none`; `none` keeps the orb's colour |
-| `--sizes` | `160,320` | File sizes. Pass the same list to the `sizes` attribute |
-| `--seconds`, `--fps`, `--crf` | `10`, `24`, `21` | Loop length, frame rate, quality (higher is smaller) |
-
-Rendering needs [ffmpeg](https://ffmpeg.org) on your machine, but nothing needs it at runtime. Adding a built-in state or size later reuses the files you already have.
+| `aurora` | Violet into cyan. Fluid, always folding |
+| `chalk` | Monochrome silk. Composed and exact |
+| `lattice` | A rigid sphere of dots. Only the light moves |
+| `pearl` | A clear bubble with one bead of light inside |
+| `mist` | Colour bleeding through air, like watercolour |
+| `nova` | Fine and fast. A star that can't sit still |
+| `ember` | Molten and heavy. It glows from within |
+| `lagoon` | Cyan and green water. Long waves, like a tide |
+| `iris` | Tight violet folds that turn like petals |
+| `rose` | Pink glass with a heartbeat inside |
+| `moss` | Organic and lumpy. It grows and creeps |
+| `signal` | A body of dots trying to get out. Every state moves its own way |
+| `caustic` | A ball of light with a caustic net through it, like sunlight through moving water |
+| `ferro` | Black chrome ferrofluid with a molten core. Use `transition="rest"` with `import "aurb/rest"` |
+| `mercury` | A drop of liquid silver that turns to gold when it's done. Use `transition="rest"` with `import "aurb/rest"` |
 
 ## States
 
 | State | What it does | Also accepts |
 |---|---|---|
 | `idle` | Slow drift | `default` |
-| `listening` | The rim swells, a slow breath | `recording` |
-| `thinking` | A glow orbits inside | `loading`, `processing` |
-| `working` | Light sweeps round the rim | `running`, `busy` |
-| `speaking` | The core beats irregularly | `talking` |
+| `listening` | Sound arrives: waves travel in from the rim, and the rim answers | `recording` |
+| `thinking` | The folds churn inside, with irregular sparks and long calm between | `loading`, `processing` |
+| `working` | Light circles the ball at a steady, even rhythm | `running`, `busy` |
+| `speaking` | Sound leaves: it swells, its outline moves, and waves travel outward | `talking` |
 | `success` | Green and calm; try `flash()` | `done` |
-| `error` | Red and agitated; try `flash()` | `failed` |
-| `asleep` | Dim and slow | `sleeping`, `dormant` |
+| `error` | Red, tense, and shuddering; try `flash()` | `failed` |
+| `asleep` | Nearly dark, barely breathing | `sleeping`, `dormant` |
 
-**Why transitions look like one object:** every state shares one body, the same folds on the same clock for the same length, and each adds its own behaviour on top. The player starts the new state at the same moment in the loop and fades it in over the old, so nothing dips or doubles.
+Those are the defaults; each preset changes how it does them.
 
-### Your own states and orbs
-
-Put them in `aurb.config.json`, then run `npx aurb build`:
-
-```json
-{
-  "out": "public/aurb",
-  "states": {
-    "celebrate": { "extends": "success", "sweep": 1, "sweepN": 2, "tint": "#f59e0b" }
-  },
-  "orbs": {
-    "assistant": { "preset": "aurora", "states": ["idle", "thinking", "celebrate"], "themes": ["dark", "light"] }
-  }
-}
-```
-
-Each orb takes the same names as the flags above. A state can start from a built-in with `extends` and set any of these:
-
-| Field | Range | Effect |
-|---|---|---|
-| `energy` | 0.1 to 2 | Overall light |
-| `flow`, `flowN` | 0 to 1.5, 1 to 12 | Faster inner motion, and how many cycles per loop |
-| `orbit`, `orbitN` | 0 to 0.9, 1 to 12 | A glow circling inside |
-| `sweep`, `sweepN` | 0 to 3, 1 to 12 | Light running round the rim |
-| `pulse`, `pulseN` | 0 to 0.6, `[a, b]` | Light beating at two rates, which looks less mechanical |
-| `breathe`, `breatheN` | 0 to 0.05, 1 to 12 | The outline moving gently |
-| `rim`, `rimBeat`, `rimBeatN` | 0 to 3, 0 to 2, 1 to 12 | Edge brightness and swell |
-| `coreBeat`, `coreBeatN` | 0 to 4, 1 to 12 | The inner glow beating |
-| `tint` | hex | This state's colour |
-
-Cycle counts have to be whole numbers, or the loop would jump, so the config rejects anything else. Changing a custom state re-renders that orb in a new folder. `aurb build` also writes `aurb-states.d.ts`, so TypeScript accepts your states; commit it with your code.
+**Why transitions look like one object:** every state is the same material on the same clock for the same length, and nothing is drawn on top. The player starts the new state at the same moment in the loop and fades it in over the old, so nothing dips or doubles.
 
 ## The element
 
 | Attribute | Default | Meaning |
 |---|---|---|
-| `src` | | Folder made by `aurb add` |
+| `orb` | | Which orb, such as `aurora`, or the URL of a folder you host |
 | `state` | `idle` | Change it at any time; the newest request wins |
 | `transition` | `500` | Crossfade in ms, optionally per state: `"500 thinking:250 error:150"` |
 | `hold` | `200` | Minimum ms a state stays, so fast responses don't flicker |
@@ -183,14 +122,14 @@ Cycle counts have to be whole numbers, or the loop would jump, so the config rej
 | `theme` | `auto` | Follows `.dark`, `.light`, or `data-theme` on `<html>` or `<body>`, then the system |
 | `prefetch` | | States to fetch once the page is idle |
 | `loading` | `lazy` | `eager` starts before the page's load event |
-| `sizes` | `160,320` | Sizes in the folder, if you changed them with `--sizes` |
+| `sizes` | `sm,md,lg` | Tiers the player may choose from. Leave it alone for automatic, or set one, such as `sizes="sm"`, to force it |
 | `speed` | `1` | Playback speed |
 | `paused` | | Freeze on the current frame and stop decoding |
 | `static` | | Poster only; no video is fetched |
 
 **Methods:** `orb.flash("success", 1500)` shows a state, then returns. `orb.prefetch(states)` and `orb.prefetchOn(element, states)` fetch ahead. `orb.refresh()` re-reads the theme and the colour behind the orb, for when your app changes them in a way the orb can't see.
 
-**Events:** `aurbready` when the first frame shows, `aurbstatechange` with `detail.state`, and `aurberror` with `detail.reason`, either `missing` (no file for that state) or `blocked` (the browser refused autoplay). In both error cases the current picture stays.
+**Events:** `aurbready` when the first frame shows, `aurbstatechange` with `detail.state`, and `aurberror` with `detail.reason`, either `missing` (this orb has no such state) or `blocked` (the browser refused autoplay). In both error cases the current picture stays.
 
 **Styling:** set the size with CSS `width`. The `surface` and `stack` parts are available through `::part()`.
 
@@ -215,7 +154,7 @@ import type { AurbOrb } from "aurb";
 const ref = useRef<AurbOrb>(null);
 
 <Aurb
-  src="/aurb/aurora-1a2b3c4d"
+  orb="aurora"
   ref={ref}
   state={busy ? "thinking" : "idle"}
   prefetch="thinking"
@@ -228,7 +167,7 @@ Works with React 18 and 19, and is safe to server-render: the size is reserved b
 
 ## TypeScript
 
-Types ship with the package. State names are checked, so `state="thinkin"` is a compile error, on the element, the React component, and `prefetch()`. Custom states are added by the generated `aurb-states.d.ts`:
+Types ship with the package. State names are checked, so `state="thinkin"` is a compile error, on the element, the React component, and `prefetch()`. A custom orb with its own states comes with an `aurb-states.d.ts` that adds them:
 
 ```ts
 declare module "aurb" {
@@ -238,14 +177,6 @@ declare module "aurb" {
 }
 ```
 
-## Caching
-
-Folder names are a hash of the look, so they can be cached forever, and a changed orb can never be served stale:
-
-```js
-// next.config.js
-{ source: "/aurb/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }
-```
 
 ## Development
 
@@ -253,7 +184,7 @@ Folder names are a hash of the look, so they can be cached forever, and a change
 npm test
 ```
 
-This builds, fails if the player goes over 4 KB gzip, compiles strict type tests, renders a real orb, and checks in a real browser exactly which files download and how the states behave.
+This builds, fails if the player goes over 4 KB gzip, compiles strict type tests, and checks in a real browser exactly which files download and how the states behave. The browser test plays two small orbs kept in `test/orbs`, so it needs nothing else.
 
 ## License
 

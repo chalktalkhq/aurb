@@ -1,38 +1,33 @@
-// End-to-end: renders a real orb, serves it over HTTP, and checks behaviour and exactly which bytes
-// get downloaded in a real browser. Run with: npm test
-import { execFileSync, spawnSync } from "node:child_process";
+// End-to-end: serves two small pre-rendered orbs (test/orbs, made by the studio) as plain static files the way the CDN
+// does (no Range support, no cache headers: the worst case), and checks behaviour and exactly which bytes get downloaded
+// in a real browser. Run with: npm test
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 
 const root = path.resolve(".tmp/test");
-fs.mkdirSync(root, { recursive: true });
-console.log("Rendering the test orb...");
-execFileSync(process.execPath, ["cli/aurb.mjs", "add", "chalk", "--states", "idle,thinking,working", "--sizes", "160,320", "--out", root, "--seconds", "4"], { stdio: "pipe" });
-const folderName = fs.readdirSync(root).find((f) => f.startsWith("chalk-"));
+fs.rmSync(root, { recursive: true, force: true });
+// chalk: idle, thinking and working at 80, 160 and 320, both themes. ferro: a solid orb with rest sheets, for the rest
+// transitions. Both are short loops, so the fixtures stay small.
+fs.cpSync("test/orbs", root, { recursive: true });
+const folderName = "chalk";
 const blob = path.join(root, folderName);
 fs.copyFileSync("dist/aurb.global.js", path.join(root, "aurb.global.js"));
+const restFolder = "ferro";
+for (const f of ["aurb.js", "shared.js", "rest.js"]) fs.copyFileSync(`dist/${f}`, path.join(root, f)); // the module build, for rest
 
-let served = {}; // bytes actually sent per file, as no cache headers are set: the worst case
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mp4": "video/mp4", ".webm": "video/webm", ".jpg": "image/jpeg", ".json": "application/json" };
+let served = {}; // bytes actually sent per media file
+const TYPES = { js: "text/javascript", webm: "video/webm", mp4: "video/mp4", jpg: "image/jpeg" };
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
   if (url === "/__page") { res.writeHead(200, { "content-type": "text/html" }); res.end(global.__page); return; }
-  const file = path.join(root, url);
-  if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
-  const size = fs.statSync(file).size, type = TYPES[path.extname(file)] ?? "application/octet-stream";
-  const range = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? "");
-  const sent = range ? (range[2] ? Number(range[2]) : size - 1) - Number(range[1]) + 1 : size;
-  served[path.basename(file)] = (served[path.basename(file)] ?? 0) + sent;
-  if (range) {
-    const start = Number(range[1]), end = range[2] ? Number(range[2]) : size - 1;
-    res.writeHead(206, { "content-type": type, "content-range": `bytes ${start}-${end}/${size}`, "accept-ranges": "bytes", "content-length": end - start + 1 });
-    fs.createReadStream(file, { start, end }).pipe(res);
-  } else {
-    res.writeHead(200, { "content-type": type, "content-length": size, "accept-ranges": "bytes" });
-    fs.createReadStream(file).pipe(res);
-  }
+  const file = path.join(root, url), ext = path.extname(file).slice(1);
+  if (!file.startsWith(root) || !TYPES[ext] || !fs.existsSync(file)) { res.writeHead(404, { "access-control-allow-origin": "*" }); res.end(); return; }
+  const body = fs.readFileSync(file);
+  if (ext !== "js") served[path.basename(file)] = (served[path.basename(file)] ?? 0) + body.length;
+  res.writeHead(200, { "content-type": TYPES[ext], "access-control-allow-origin": "*" });
+  res.end(body);
 });
 await new Promise((r) => server.listen(0, r));
 const BASE = `http://localhost:${server.address().port}`;
@@ -40,33 +35,43 @@ const BASE = `http://localhost:${server.address().port}`;
 let failed = 0, total = 0;
 const check = (name, ok, detail = "") => { total++; if (!ok) failed++; console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail !== "" ? `  (${detail})` : ""}`); };
 
-const pageHtml = (body, htmlClass = "dark") => `<!doctype html><html class="${htmlClass}"><body style="margin:0;background:${htmlClass === "dark" ? "#191919" : "#f5f5f3"}"><script src="/aurb.global.js"></script>${body}</body></html>`;
+const pageHtml = (body, htmlClass = "dark", esm) => `<!doctype html><html class="${htmlClass}"><body style="margin:0;background:${htmlClass === "dark" ? "#191919" : "#f5f5f3"}">${esm ? '<script type="module" src="/aurb.js"></script><script type="module" src="/rest.js"></script>' : '<script src="/aurb.global.js"></script>'}${body}</body></html>`;
 
 const browser = await chromium.launch({ channel: "chrome", headless: true, args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"] });
 
-async function open(body, { htmlClass = "dark", ctxOptions = {}, init } = {}) {
-  global.__page = pageHtml(body, htmlClass);
+// Every file plays from a blob: link; remember which file each one came from, so the tests can name it.
+const names = () => {
+  window.__names = {};
+  const blob = Response.prototype.blob, make = URL.createObjectURL;
+  Response.prototype.blob = async function () { const b = await blob.call(this); b.__url = this.url; return b; };
+  URL.createObjectURL = (b) => { const u = make(b); if (b.__url) window.__names[u] = b.__url; return u; };
+};
+
+async function open(body, { htmlClass = "dark", ctxOptions = {}, init, esm } = {}) {
+  global.__page = pageHtml(body, htmlClass, esm);
   const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, deviceScaleFactor: 1, ...ctxOptions });
   const page = await ctx.newPage();
   const media = new Set();
-  page.on("request", (r) => { if (/\.(mp4|webm|jpg)/.test(r.url())) media.add(r.url().split("/").pop()); });
+  page.on("request", (r) => { if (/\.(mp4|webm|jpg)/.test(r.url())) media.add(r.url().split("?")[0].split("/").pop()); });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(names);
   if (init) await page.addInitScript(init);
   await page.goto(`${BASE}/__page`);
   return { ctx, page, media, errors };
 }
-const src = `/${folderName}`;
+const src = `orb="${BASE}/${folderName}"`;
+const props = `orb: ${JSON.stringify(`${BASE}/${folderName}`)}`;
 const status = (page, id = "o") => page.evaluate((id) => {
   const o = document.getElementById(id);
   const vs = [...o.shadowRoot.querySelectorAll("video")];
   const top = vs.find((v) => getComputedStyle(v).opacity === "1") ?? vs[0];
-  return { state: o.state, file: decodeURI(top.currentSrc).split("/").pop(), opacity: getComputedStyle(top).opacity, paused: top.paused, playing: vs.filter((v) => !v.paused).length };
+  return { state: o.state, file: decodeURI(window.__names[top.currentSrc] ?? top.currentSrc).split("/").pop(), opacity: getComputedStyle(top).opacity, paused: top.paused, playing: vs.filter((v) => !v.paused).length };
 }, id);
 
 console.log("\n-- Downloads only what is needed --");
 {
-  const { ctx, page, media } = await open(`<aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb>`);
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`);
   await page.waitForTimeout(1500);
   const st = await status(page);
   check("one state fetched: poster and idle, nothing else", media.size === 2 && media.has("idle-dark-160.webm") && media.has("poster-dark-160.jpg"), [...media].join(", "));
@@ -81,19 +86,19 @@ console.log("\n-- Downloads only what is needed --");
   await ctx.close();
 }
 {
-  const { ctx, page, media } = await open(`<aurb-orb id="o" src="${src}" style="width:240px"></aurb-orb>`);
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} style="width:240px"></aurb-orb>`);
   await page.waitForTimeout(1200);
   check("large orb takes the large file", media.has("idle-dark-320.webm"), [...media].join(", "));
   await ctx.close();
 }
 {
-  const { ctx, page, media } = await open(`<aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb>`, { ctxOptions: { deviceScaleFactor: 2 } });
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`, { ctxOptions: { deviceScaleFactor: 2 } });
   await page.waitForTimeout(1200);
   check("retina doubles the size it asks for", media.has("idle-dark-320.webm"), [...media].join(", "));
   await ctx.close();
 }
 {
-  const { ctx, page, media } = await open(`<div style="height:3000px"></div><aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb>`);
+  const { ctx, page, media } = await open(`<div style="height:3000px"></div><aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`);
   await page.waitForTimeout(1200);
   check("offscreen orb fetches no video", ![...media].some((f) => /\.(webm|mp4)$/.test(f)), [...media].join(", ") || "nothing");
   await page.evaluate(() => { document.getElementById("o").state = "thinking"; });
@@ -105,19 +110,19 @@ console.log("\n-- Downloads only what is needed --");
   await ctx.close();
 }
 {
-  const { ctx, page, media } = await open(`<aurb-orb id="o" static src="${src}" style="width:120px"></aurb-orb>`);
+  const { ctx, page, media } = await open(`<aurb-orb id="o" static ${src} style="width:120px"></aurb-orb>`);
   await page.waitForTimeout(800);
   check("static: poster only", media.size === 1 && media.has("poster-dark-160.jpg"), [...media].join(", "));
   await ctx.close();
 }
 {
-  const { ctx, page, media } = await open(`<aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb>`, { ctxOptions: { reducedMotion: "reduce" } });
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`, { ctxOptions: { reducedMotion: "reduce" } });
   await page.waitForTimeout(800);
   check("reduced motion: poster only", media.size === 1, [...media].join(", "));
   await ctx.close();
 }
 {
-  const { ctx, page, media } = await open(`<aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb>`, { init: () => Object.defineProperty(navigator, "connection", { value: { saveData: true } }) });
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`, { init: () => Object.defineProperty(navigator, "connection", { value: { saveData: true } }) });
   await page.waitForTimeout(800);
   check("Save-Data: poster only", media.size === 1, [...media].join(", "));
   await ctx.close();
@@ -125,13 +130,13 @@ console.log("\n-- Downloads only what is needed --");
 
 console.log("\n-- Prefetch --");
 {
-  const { ctx, page, media } = await open(`<aurb-orb id="o" src="${src}" prefetch="thinking" style="width:120px"></aurb-orb>`);
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} prefetch="thinking" style="width:120px"></aurb-orb>`);
   await page.waitForTimeout(1500);
   check("attribute fetches the listed state once idle", media.has("thinking-dark-160.webm") && !media.has("working-dark-160.webm"), [...media].join(", "));
   await ctx.close();
 }
 {
-  const { ctx, page, media } = await open(`<aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb><button id="b" style="position:fixed;left:300px;top:300px;width:100px;height:50px">Send</button>`);
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb><button id="b" style="position:fixed;left:300px;top:300px;width:100px;height:50px">Send</button>`);
   await page.waitForTimeout(800);
   await page.evaluate(() => document.getElementById("o").prefetchOn(document.getElementById("b"), "working"));
   check("intent: nothing before hover", !media.has("working-dark-160.webm"));
@@ -141,14 +146,14 @@ console.log("\n-- Prefetch --");
   await ctx.close();
 }
 {
-  const { ctx, page, media } = await open(`<aurb-orb id="o" src="${src}" prefetch="thinking" style="width:120px"></aurb-orb>`, { init: () => Object.defineProperty(navigator, "connection", { value: { effectiveType: "2g" } }) });
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} prefetch="thinking" style="width:120px"></aurb-orb>`, { init: () => Object.defineProperty(navigator, "connection", { value: { effectiveType: "2g" } }) });
   await page.waitForTimeout(1200);
   check("2G: prefetch stays off", !media.has("thinking-dark-160.webm"), [...media].join(", "));
   await ctx.close();
 }
 {
   const { ctx, page, media } = await open("");
-  await page.evaluate((src) => { aurb.prefetch({ src, states: ["thinking", "working"], theme: "light", width: 200 }); }, src);
+  await page.evaluate((orb) => { aurb.prefetch({ orb, states: ["thinking", "working"], theme: "light", width: 200 }); }, `${BASE}/${folderName}`);
   await page.waitForTimeout(600);
   check("standalone prefetch() works before any orb exists", media.has("thinking-light-320.webm") && media.has("working-light-320.webm"), [...media].join(", "));
   await ctx.close();
@@ -156,8 +161,8 @@ console.log("\n-- Prefetch --");
 
 for (const theme of ["dark", "light"]) {
   console.log(`\n-- Behaviour, ${theme} --`);
-  const { ctx, page, errors } = await open(`<aurb-orb id="o" src="${src}" style="width:240px"></aurb-orb>
-    <div id="panel" style="margin:20px;padding:20px;width:160px;background:${theme === "dark" ? "#2a2a40" : "#e8e4dc"}"><aurb-orb id="p" src="${src}" style="width:120px"></aurb-orb></div>`, { htmlClass: theme, init: () => { window.__long = []; new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__long.push(Math.round(e.duration)))).observe({ type: "longtask", buffered: true }); } });
+  const { ctx, page, errors } = await open(`<aurb-orb id="o" ${src} style="width:240px"></aurb-orb>
+    <div id="panel" style="margin:20px;padding:20px;width:160px;background:${theme === "dark" ? "#2a2a40" : "#e8e4dc"}"><aurb-orb id="p" ${src} style="width:120px"></aurb-orb></div>`, { htmlClass: theme, init: () => { window.__long = []; new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__long.push(Math.round(e.duration)))).observe({ type: "longtask", buffered: true }); } });
   await page.waitForTimeout(1800);
   for (const s of ["thinking", "working", "idle"]) {
     await page.evaluate((s) => { document.getElementById("o").state = s; }, s);
@@ -222,7 +227,7 @@ console.log("\n-- Audit findings: each of these failed before it was fixed --");
 const settled = (page, id = "o") => page.waitForFunction((id) => [...document.getElementById(id).shadowRoot.querySelectorAll("video")].some((v) => getComputedStyle(v).opacity === "1"), id, { timeout: 15000 });
 {
   // Was 31%: the picture showed through when a state changed during a fade.
-  const { ctx, page } = await open(`<aurb-orb id="o" hold="0" loading="eager" src="${src}" style="width:240px"></aurb-orb>`);
+  const { ctx, page } = await open(`<aurb-orb id="o" hold="0" loading="eager" ${src} style="width:240px"></aurb-orb>`);
   await settled(page);
   const r = await page.evaluate(async () => {
     const e = document.getElementById("o");
@@ -236,7 +241,7 @@ const settled = (page, id = "o") => page.waitForFunction((id) => [...document.ge
     e.state = "working";
     await new Promise((r) => setTimeout(r, 1800));
     stop = true;
-    return { low, state: e.state, file: decodeURI([a, b].find((v) => getComputedStyle(v).opacity === "1").currentSrc).split("/").pop() };
+    return { low, state: e.state, file: (({ currentSrc: s }) => decodeURI(window.__names[s] ?? s).split("/").pop())([a, b].find((v) => getComputedStyle(v).opacity === "1")) };
   });
   check("a switch during a fade leaves no hole in the picture", r.low > 0.995, `lowest coverage ${(r.low * 100).toFixed(0)}%`);
   check("and still arrives at the newest state", r.file === "working-dark-320.webm", r.file);
@@ -245,7 +250,7 @@ const settled = (page, id = "o") => page.waitForFunction((id) => [...document.ge
 {
   // Was 2.00x: prefetch downloaded the file twice on a host with no cache headers.
   served = {};
-  const { ctx, page } = await open(`<aurb-orb id="o" prefetch="thinking" src="${src}" style="width:120px"></aurb-orb>`);
+  const { ctx, page } = await open(`<aurb-orb id="o" prefetch="thinking" ${src} style="width:120px"></aurb-orb>`);
   await settled(page);
   await page.waitForTimeout(1200);
   const ms = await page.evaluate(() => new Promise((res) => { const e = document.getElementById("o"), t = performance.now(); e.addEventListener("aurbstatechange", () => res(performance.now() - t), { once: true }); e.state = "thinking"; }));
@@ -258,7 +263,7 @@ const settled = (page, id = "o") => page.waitForFunction((id) => [...document.ge
 {
   // Was downloading both copies: blocked autoplay was mistaken for a broken codec.
   served = {};
-  const { ctx, page } = await open(`<aurb-orb id="o" loading="eager" src="${src}" style="width:120px"></aurb-orb>`, { init: () => { HTMLMediaElement.prototype.play = function () { return Promise.reject(new DOMException("blocked", "NotAllowedError")); }; window.__errs = []; addEventListener("DOMContentLoaded", () => document.getElementById("o").addEventListener("aurberror", (e) => window.__errs.push(e.detail.reason))); } });
+  const { ctx, page } = await open(`<aurb-orb id="o" loading="eager" ${src} style="width:120px"></aurb-orb>`, { init: () => { HTMLMediaElement.prototype.play = function () { return Promise.reject(new DOMException("blocked", "NotAllowedError")); }; window.__errs = []; addEventListener("DOMContentLoaded", () => document.getElementById("o").addEventListener("aurberror", (e) => window.__errs.push(e.detail.reason))); } });
   await page.waitForTimeout(1500);
   const vids = Object.keys(served).filter((k) => /\.(mp4|webm)$/.test(k));
   check("blocked autoplay downloads no second copy", vids.length === 1, vids.join(", "));
@@ -267,7 +272,7 @@ const settled = (page, id = "o") => page.waitForFunction((id) => [...document.ge
 }
 {
   // Was stuck on the 160px file at 600px.
-  const { ctx, page } = await open(`<aurb-orb id="o" src="${src}" style="width:40px"></aurb-orb>`);
+  const { ctx, page } = await open(`<aurb-orb id="o" ${src} style="width:40px"></aurb-orb>`);
   await settled(page);
   await page.evaluate(() => { document.getElementById("o").style.width = "600px"; });
   await page.waitForTimeout(1400);
@@ -280,7 +285,7 @@ const settled = (page, id = "o") => page.waitForFunction((id) => [...document.ge
 }
 {
   // Was +100 listeners per 100 switches.
-  const { ctx, page } = await open(`<aurb-orb id="o" hold="0" transition="20" loading="eager" src="${src}" style="width:120px"></aurb-orb>`);
+  const { ctx, page } = await open(`<aurb-orb id="o" hold="0" transition="20" loading="eager" ${src} style="width:120px"></aurb-orb>`);
   const cdp = await ctx.newCDPSession(page);
   await cdp.send("Performance.enable");
   await settled(page);
@@ -293,7 +298,7 @@ const settled = (page, id = "o") => page.waitForFunction((id) => [...document.ge
 }
 {
   // Was 8 ms per change with 30 orbs, because every orb re-read its ancestors' colours.
-  const { ctx, page } = await open(`<aurb-orb id="o" static src="${src}" style="width:80px"></aurb-orb>`.repeat(5));
+  const { ctx, page } = await open(`<aurb-orb id="o" static ${src} style="width:80px"></aurb-orb>`.repeat(5));
   await page.waitForTimeout(700);
   const calls = await page.evaluate(async () => {
     let n = 0; const real = window.getComputedStyle;
@@ -309,7 +314,7 @@ const settled = (page, id = "o") => page.waitForFunction((id) => [...document.ge
 }
 {
   // Was a silent 404.
-  const { ctx, page } = await open(`<aurb-orb id="o" loading="eager" src="${src}" style="width:120px"></aurb-orb>`);
+  const { ctx, page } = await open(`<aurb-orb id="o" loading="eager" ${src} style="width:120px"></aurb-orb>`);
   const logs = [];
   page.on("console", (m) => { if (m.type() === "warning") logs.push(m.text()); });
   await settled(page);
@@ -318,12 +323,12 @@ const settled = (page, id = "o") => page.waitForFunction((id) => [...document.ge
   check("CLI aliases work on the element too", (await status(page)).file === "working-dark-160.webm", (await status(page)).file);
   const reason = await page.evaluate(() => new Promise((res) => { const e = document.getElementById("o"); e.addEventListener("aurberror", (x) => res(x.detail.reason), { once: true }); e.state = "nope"; setTimeout(() => res(null), 2500); }));
   check("a missing state fires an error event", reason === "missing", reason);
-  check("a missing state explains itself in the console", logs.some((l) => l.includes("aurb add --states nope")), logs[0]?.slice(0, 70));
+  check("a missing state explains itself in the console", logs.some((l) => l.includes("no nope")), logs[0]?.slice(0, 70));
   await ctx.close();
 }
 {
   // Remove and re-add, which is what React StrictMode and list re-orders do.
-  const { ctx, page } = await open(`<div id="p"><aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb></div>`);
+  const { ctx, page } = await open(`<div id="p"><aurb-orb id="o" ${src} style="width:120px"></aurb-orb></div>`);
   await settled(page);
   await page.evaluate(async () => { const e = document.getElementById("o"), p = e.parentNode; e.remove(); await new Promise((r) => setTimeout(r, 50)); p.append(e); });
   await page.waitForTimeout(1200);
@@ -334,7 +339,7 @@ const settled = (page, id = "o") => page.waitForFunction((id) => [...document.ge
 
 console.log("\n-- Runtime controls --");
 {
-  const { ctx, page } = await open(`<aurb-orb id="o" transition="900 thinking:120" hold="0" src="${src}" style="width:120px"></aurb-orb>`);
+  const { ctx, page } = await open(`<aurb-orb id="o" transition="900 thinking:120" hold="0" ${src} style="width:120px"></aurb-orb>`);
   await settled(page);
   const fade = (s) => page.evaluate(async (s) => { const e = document.getElementById("o"); await new Promise((r) => { e.addEventListener("aurbstatechange", r, { once: true }); e.state = s; }); return getComputedStyle([...e.shadowRoot.querySelectorAll("video")].find((v) => v.style.zIndex === "1")).transitionDuration; }, s);
   const perState = await fade("thinking");
@@ -356,39 +361,12 @@ console.log("\n-- Runtime controls --");
   await ctx.close();
 }
 {
-  const { ctx, page } = await open(`<script>window.__r=0;addEventListener("DOMContentLoaded",()=>document.getElementById("o").addEventListener("aurbready",()=>window.__r++))</script><aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb>`);
+  const { ctx, page } = await open(`<script>window.__r=0;addEventListener("DOMContentLoaded",()=>document.getElementById("o").addEventListener("aurbready",()=>window.__r++))</script><aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`);
   await settled(page);
   await page.evaluate(() => { document.getElementById("o").state = "thinking"; });
   await page.waitForTimeout(900);
   check("the ready event fires once", (await page.evaluate(() => window.__r)) === 1);
   await ctx.close();
-}
-
-console.log("\n-- Custom states from a config file --");
-{
-  const dir = path.resolve(".tmp/cfg");
-  fs.rmSync(dir, { recursive: true, force: true });
-  fs.mkdirSync(dir, { recursive: true });
-  const cli = path.resolve("cli/aurb.mjs");
-  const run = (args) => spawnSync(process.execPath, [cli, ...args], { cwd: dir, encoding: "utf8" });
-  const write = (c) => fs.writeFileSync(path.join(dir, "aurb.config.json"), JSON.stringify(c));
-  write({ out: "public/aurb", states: { celebrate: { extends: "success", sweep: 1, sweepN: 2, tint: "#f59e0b" } }, orbs: { party: { preset: "aurora", states: ["idle", "celebrate"], themes: ["dark"], sizes: [160], seconds: 3, "state-color": { error: "none" } } } });
-  const built = run(["build"]);
-  check("aurb build renders a custom state", built.status === 0 && fs.readdirSync(path.join(dir, "public/aurb")).some((f) => f.startsWith("party-")), (built.stderr || "").slice(0, 80));
-  const party = path.join(dir, "public/aurb", fs.readdirSync(path.join(dir, "public/aurb"))[0]);
-  check("it produces the state's files", fs.existsSync(path.join(party, "celebrate-dark-160.webm")));
-  check("it writes types for the custom state", /celebrate: true/.test(fs.readFileSync(path.join(dir, "aurb-states.d.ts"), "utf8")));
-  for (const [label, states, hint] of [
-    ["an unknown field", { x: { wobbly: 1 } }, 'unknown field "wobbly"'],
-    ["a fractional cycle, which would break the loop", { x: { sweepN: 1.5 } }, "whole number"],
-    ["an out-of-range value", { x: { energy: 40 } }, "energy must be"],
-    ["a name that is already an alias", { running: { energy: 1 } }, "already another name"],
-    ["a bad colour", { x: { tint: "red" } }, "not a hex colour"],
-  ]) {
-    write({ states, orbs: { a: { states: ["idle"] } } });
-    const r = run(["build"]);
-    check(`config rejects ${label}`, r.status === 1 && r.stderr.includes(hint), r.stderr.trim().slice(0, 70));
-  }
 }
 
 console.log("\n-- React --");
@@ -403,7 +381,7 @@ console.log("\n-- React --");
       const [state, setState] = useState("idle");
       const [isStatic, setStatic] = useState(false);
       window.__set = setState; window.__static = setStatic;
-      return h(Aurb, { id: "o", ref: window.__ref, src: ${JSON.stringify(src)}, state, static: isStatic, paused: false, className: "c", style: { width: 120 }, onStateChange: (s) => window.__events.push(s), onReady: () => window.__events.push("ready") });
+      return h(Aurb, { id: "o", ref: window.__ref, ${props}, state, static: isStatic, paused: false, className: "c", style: { width: 120 }, onStateChange: (s) => window.__events.push(s), onReady: () => window.__events.push("ready") });
     }
     createRoot(document.getElementById("root")).render(h(App));
   `, resolveDir: path.resolve(".") }, bundle: true, outfile: path.join(root, "react-app.js"), logLevel: "error", define: { "process.env.NODE_ENV": '"production"' } });
@@ -423,18 +401,50 @@ console.log("\n-- React --");
   check("static={true} stops the video", await page.evaluate(() => window.__ref.current.hasAttribute("static") && [...window.__ref.current.shadowRoot.querySelectorAll("video")].every((v) => v.paused)));
   await ctx.close();
 }
+{
+  // React 19 writes a prop as a property when the element has one by that name, and prefetch is also a method.
+  const { build } = await import("esbuild");
+  await build({ stdin: { contents: `
+    import { createElement as h, createRef, useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import { Aurb } from ${JSON.stringify(path.resolve("dist/react.js").replaceAll("\\", "/"))};
+    window.__ref = createRef();
+    function App() {
+      const [list, setList] = useState("working");
+      window.__list = setList;
+      return h("div", null,
+        h(Aurb, { ref: window.__ref, ${props}, prefetch: list, style: { width: 120 } }),
+        h("aurb-orb", { id: "raw", ${props}, prefetch: "thinking", theme: "light", style: { width: 120 } }));
+    }
+    createRoot(document.getElementById("root")).render(h(App));
+  `, resolveDir: path.resolve(".") }, bundle: true, outfile: path.join(root, "react-prefetch.js"), logLevel: "error", define: { "process.env.NODE_ENV": '"production"' } });
+  const { ctx, page, media, errors } = await open(`<div id="root"></div><script src="/react-prefetch.js"></script>`);
+  await page.waitForFunction(() => window.__ref?.current, null, { timeout: 8000 });
+  await page.waitForTimeout(1500);
+  check("the prefetch prop fetches its state", media.has("working-dark-160.webm"), [...media].join(", "));
+  check("prefetch on a bare <aurb-orb> in React fetches too", media.has("thinking-light-160.webm"), [...media].join(", "));
+  check("prefetch props never replace the method", await page.evaluate(() => typeof window.__ref.current.prefetch === "function" && typeof document.getElementById("raw").prefetch === "function"));
+  await page.evaluate(() => window.__list("thinking"));
+  await page.waitForTimeout(800);
+  check("a changed prefetch prop fetches the new state", media.has("thinking-dark-160.webm"), [...media].join(", "));
+  await page.evaluate(() => { window.__ref.current.prefetch(["idle"]); window.__list(undefined); });
+  await page.waitForTimeout(300);
+  check("removing the prop removes the attribute", await page.evaluate(() => !window.__ref.current.hasAttribute("prefetch")));
+  check("nothing throws", errors.length === 0, errors.join("; "));
+  await ctx.close();
+}
 
 console.log("\n-- Fallback and theme --");
 {
   // A browser that cannot play VP9 gets H.264 from the same markup.
-  const { ctx, page, media } = await open(`<aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb>`, { init: () => { HTMLVideoElement.prototype.canPlayType = () => ""; } });
+  const { ctx, page, media } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`, { init: () => { HTMLVideoElement.prototype.canPlayType = () => ""; } });
   await page.waitForTimeout(1200);
   const st = await status(page);
   check("falls back to H.264 when VP9 is unsupported", st.file === "idle-dark-160.mp4" && !st.paused, st.file);
   await ctx.close();
 }
 {
-  const { ctx, page } = await open(`<aurb-orb id="o" src="${src}" style="width:120px"></aurb-orb>`);
+  const { ctx, page } = await open(`<aurb-orb id="o" ${src} style="width:120px"></aurb-orb>`);
   await page.waitForTimeout(1200);
   await page.evaluate(() => { document.documentElement.className = "light"; document.body.style.background = "#f5f5f3"; });
   await page.waitForTimeout(1300);
@@ -442,6 +452,52 @@ console.log("\n-- Fallback and theme --");
   const blend = await page.evaluate(() => document.getElementById("o").shadowRoot.querySelector(".k").style.mixBlendMode);
   check("follows a live theme switch", st.file === "idle-light-160.webm" && blend === "multiply", `${st.file}, ${blend}`);
   await ctx.close();
+}
+
+console.log("\n-- Rest transitions --");
+{
+  // A state change on a solid orb walks through the rest pose, each step joined on a segment boundary.
+  const tag = (extra) => `<aurb-orb id="o" orb="${BASE}/${restFolder}" sizes="80" ${extra} style="width:80px"></aurb-orb>`;
+  const watch = (page) => page.evaluate(async () => {
+    const o = document.getElementById("o"), out = [];
+    const top = () => [...o.shadowRoot.querySelectorAll("video")].find((v) => v.style.zIndex === "1");
+    o.state = "thinking";
+    for (const end = performance.now() + 3500; performance.now() < end; await new Promise((r) => setTimeout(r, 10))) {
+      const v = top(), f = (window.__names[v?.src] ?? v?.src)?.split("/").pop();
+      if (f && f !== out.at(-1)?.f) out.push({ f, t: v.currentTime });
+    }
+    return out;
+  });
+  const name = (s) => s.f.replace(/-(dark|light)-\d+\.\w+$/, "");
+  {
+    const { ctx, page, errors } = await open(tag('transition="rest"'), { esm: true });
+    await settled(page);
+    const seen = await watch(page);
+    check("a solid orb moves through its rest pose", seen.map(name).join() === "idle,idle-out,rest,thinking-in,thinking", seen.map(name).join(", "));
+    const off = (t) => Math.min(t % 0.5, 0.5 - (t % 0.5));
+    check("each step joins on a segment boundary", seen.length > 1 && seen.slice(1).every((s) => off(s.t) < 0.1), seen.map((s) => s.t.toFixed(2)).join(", "));
+    check("nothing throws", !errors.length, errors.join("; "));
+    // A change of mind part way through: back to idle while it is still sinking. It must still arrive, through the rest pose.
+    const end = await page.evaluate(async () => {
+      const o = document.getElementById("o"), top = () => [...o.shadowRoot.querySelectorAll("video")].find((v) => v.style.zIndex === "1");
+      o.state = "idle";
+      await new Promise((r) => setTimeout(r, 150));
+      o.state = "thinking";
+      await new Promise((r) => setTimeout(r, 150));
+      o.state = "idle";
+      await new Promise((r) => setTimeout(r, 3000));
+      return (window.__names[top()?.src] ?? top()?.src)?.split("/").pop();
+    });
+    check("a change of mind part way through still arrives", end === "idle-dark-80.webm", end);
+    await ctx.close();
+  }
+  {
+    const { ctx, page, media } = await open(tag(""), { esm: true });
+    await settled(page);
+    const seen = await watch(page);
+    check("without transition=rest it crossfades as before", seen.map(name).join() === "idle,thinking" && ![...media].some((m) => /-(out|in)-/.test(m)), seen.map(name).join(", "));
+    await ctx.close();
+  }
 }
 
 await browser.close();

@@ -7,12 +7,12 @@
 #      once the tests pass.
 #
 # Running this workflow by hand publishes the version in package.json if npm doesn't have it yet, and creates its
-# tag and GitHub release if they're missing. That is how the first version goes out, and how a failed publish is
-# retried.
+# tag and GitHub release if they're missing. That is how a failed publish is retried, and how the tag and release
+# for a version published by hand are created.
 #
-# npm auth: trusted publishing (OIDC) once it's set up for this repository and workflow on npmjs.com, otherwise an
-# npm automation token in the NPM_TOKEN secret. The very first publish needs the token, because npm only lets you set
-# up trusted publishing on a package that already exists.
+# npm auth is trusted publishing (OIDC): no token is stored anywhere. On npmjs.com, the aurb package's settings list
+# this repository and release.yml as its trusted publisher. npm only allows that on a package that already exists, so
+# the very first version is published by hand.
 name: Release
 on:
   push:
@@ -94,8 +94,6 @@ jobs:
         run: npm run build
       - if: steps.version.outputs.published == 'false'
         run: npm publish --provenance --access public --tag ${{ steps.version.outputs.dist_tag }} --ignore-scripts # tested above, on Windows
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create the tag and GitHub release if they're missing
         if: github.event_name == 'workflow_dispatch'

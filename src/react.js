@@ -26,5 +26,8 @@ export const Aurb = forwardRef(function Aurb({ className, style, onStateChange, 
 
   const attrs = { ...props };
   for (const f of FLAGS) { if (attrs[f]) attrs[f] = ""; else delete attrs[f]; }
+  // The element hides itself from screen readers when it upgrades, which can happen before hydration.
+  // Rendering the same attribute up front keeps server and client HTML identical.
+  if (!attrs.role && !("aria-hidden" in attrs)) attrs["aria-hidden"] = "true";
   return createElement("aurb-orb", { ...attrs, ref: setRef, class: className, style: { display: "inline-block", aspectRatio: "1", ...style } });
 });

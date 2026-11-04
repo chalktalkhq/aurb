@@ -1,0 +1,34 @@
+# Publishing a GitHub release tagged v<version> publishes that version to npm, with provenance, once the tests pass.
+# Needs an npm automation token as the NPM_TOKEN secret.
+name: Release
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance: the package links back to this commit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, registry-url: "https://registry.npmjs.org" }
+      - name: The tag matches package.json
+        run: test "${{ github.event.release.tag_name }}" = "v$(node -p 'require("./package.json").version')"
+      - run: npm ci
+      - run: npm run build
+      - run: npm publish --provenance --access public --ignore-scripts # tested above, on Windows
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

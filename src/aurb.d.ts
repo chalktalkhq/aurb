@@ -12,14 +12,14 @@ export interface AurbStates {
 export type AurbState = keyof AurbStates;
 
 export interface PrefetchOptions {
-  /** Folder made by `aurb add`. */
-  src: string;
+  /** An orb's name, such as "aurora", a pinned version, such as "aurora@1.0.2", or the URL of a folder you host yourself. */
+  orb: string;
   states: AurbState | readonly AurbState[];
   /** Defaults to the page's current theme. */
   theme?: "dark" | "light" | null | undefined;
   /** Display width in CSS pixels; picks the file size. Defaults to 120. */
   width?: number | undefined;
-  /** Sizes the folder holds, such as "160,320". Defaults to "160,320". */
+  /** Tiers to choose from: sm, md, lg, xl, or pixel sizes. Defaults to "sm,md,lg". Set one to force it. */
   sizes?: string | null | undefined;
 }
 

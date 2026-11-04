@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__NAME__ - aurb</title>
-<script src="./aurb.global.js"></script>
+<script type="module" src="/aurb.js"></script>
+<script type="module" src="/rest.js"></script>
 <style>
   :root { --bg: #f5f5f3; --fg: #1f1f1d; --muted: #6b6b66; --line: #dcdcd7; --chip: #ececE8; }
   html.dark { --bg: #191919; --fg: #e6e6e6; --muted: #a0a0a0; --line: #333; --chip: #2a2a2a; }
@@ -23,14 +24,14 @@
 </head>
 <body>
   <h1>__NAME__</h1>
-  <aurb-orb id="main" src="." sizes="__SIZES__" loading="eager" state="idle" style="width:240px"></aurb-orb>
+  <aurb-orb id="main" orb="__ORB__" sizes="__SIZES__" loading="eager" state="idle" style="width:240px"></aurb-orb>
   <div class="row" id="states"><span class="label">State</span></div>
   <div class="row"><span class="label">Page theme</span><button data-theme-set="dark">Dark</button><button data-theme-set="light">Light</button></div>
   <div class="row" id="speeds"><span class="label">Transition</span></div>
   <div class="sizes" id="small"></div>
   <p class="note" id="weight"></p>
 <script>
-  const STATES = __STATES__, KB = __KB__, SIZES = "__SIZES__".split(",").map(Number);
+  const STATES = __STATES__, KB = __KB__, SIZES = "__SIZES__".split(",").map(Number), REST = __REST__;
   const orbs = () => document.querySelectorAll("aurb-orb");
   const statesEl = document.getElementById("states");
   for (const s of STATES) {
@@ -40,13 +41,14 @@
     b.onclick = () => { orbs().forEach((o) => { o.state = s; }); mark(); };
     statesEl.append(b);
   }
-  for (const ms of [250, 500, 900]) {
+  // An orb rendered with rest sheets moves through its rest pose; the crossfades are there to compare against.
+  for (const ms of REST ? ["rest", 250, 500] : [250, 500, 900]) {
     const b = document.createElement("button");
-    b.textContent = ms + " ms";
+    b.textContent = ms === "rest" ? "Through rest" : ms + " ms";
     b.dataset.ms = ms;
     b.onclick = () => { orbs().forEach((o) => o.setAttribute("transition", ms)); document.querySelectorAll("[data-ms]").forEach((x) => x.setAttribute("aria-pressed", x === b)); };
     document.getElementById("speeds").append(b);
-    if (ms === 500) b.setAttribute("aria-pressed", "true");
+    if (ms === (REST ? "rest" : 500)) { b.setAttribute("aria-pressed", "true"); if (REST) document.getElementById("main").setAttribute("transition", "rest"); }
   }
   // The sizes it is really used at, on the plain page and on a panel of a different colour.
   const small = document.getElementById("small");
@@ -54,9 +56,10 @@
     const f = document.createElement("figure");
     const host = panel ? Object.assign(document.createElement("div"), { className: "panel" }) : f;
     const o = document.createElement("aurb-orb");
-    o.setAttribute("src", ".");
+    o.setAttribute("orb", "__ORB__");
     o.setAttribute("sizes", SIZES.join(","));
     o.setAttribute("loading", "eager");
+    if (REST) o.setAttribute("transition", "rest");
     o.style.width = px + "px";
     host.append(o);
     if (panel) f.append(host);

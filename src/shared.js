@@ -3,11 +3,17 @@
 
 export const ALIASES = { running: "working", busy: "working", loading: "thinking", processing: "thinking", talking: "speaking", recording: "listening", done: "success", failed: "error", sleeping: "asleep", dormant: "asleep", default: "idle" };
 
-export const clean = (src) => (src || "").replace(/\/$/, "");
+// Every orb is its own npm package, @aurb/<name>, served free by jsDelivr from the edge nearest each visitor. An orb
+// is a name, such as "aurora" (the latest 1.x, so improved renders arrive without a code change), a pinned version,
+// such as "aurora@1.0.2", or the URL of a folder you host yourself.
+export const CDN = "https://cdn.jsdelivr.net/npm/@aurb";
+export const folder = (orb) => (orb.includes("/") ? orb.replace(/\/$/, "") : `${CDN}/${orb.includes("@") ? orb : orb + "@1"}`);
+
 export const parseList = (v) => (v || "").split(",").map((s) => s.trim()).filter(Boolean);
-export const parseSizes = (v) => parseList(v || "160,320").map(Number).sort((a, b) => a - b);
+const TIERS = { sm: 80, md: 160, lg: 320, xl: 640 };
+export const parseSizes = (v) => parseList(v || "80,160,320").map((s) => TIERS[s] ?? +s).sort((a, b) => a - b);
 export const pickSize = (sizes, cssWidth) => sizes.find((s) => s >= cssWidth * (globalThis.devicePixelRatio || 1)) ?? sizes[sizes.length - 1];
-export const file = (src, state, theme, size, ext) => `${src}/${state}-${theme}-${size}.${ext}`;
+export const file = (base, state, theme, size, ext) => `${base}/${state}-${theme}-${size}.${ext}`;
 export const warn = (msg) => console.warn(`aurb: ${msg}`);
 
 export const slowNetwork = () => {
@@ -29,25 +35,26 @@ export function detectTheme(forced) {
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-// Prefetched files are kept as blobs, not left to the HTTP cache. On a host without cache headers
-// the cache would miss and the file would download a second time, making prefetch worse than nothing.
+// Every file is fetched whole and played from memory. Static hosts may ignore Range requests, which Safari needs to
+// stream a video, and a loop of a few dozen KB gains nothing from streaming. Kept by URL, so nothing downloads twice,
+// even on a host without cache headers.
 export const blobs = new Map();
+export function load(url, priority) {
+  if (!blobs.has(url)) blobs.set(url, fetch(url, { priority })
+    .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+    .then((b) => URL.createObjectURL(b))
+    .catch(() => (blobs.delete(url), null)));
+  return blobs.get(url);
+}
 
 /**
  * Fetch states ahead of time, at low priority, so the first switch to them is instant. Does nothing
  * on Save-Data or 2G, and never fetches the same file twice.
  */
-export function prefetch({ src, states, theme, width = 120, sizes }) {
-  if (typeof document === "undefined" || slowNetwork()) return;
+export function prefetch({ orb, states, theme, width = 120, sizes }) {
+  if (typeof document === "undefined" || slowNetwork() || !orb) return;
   const size = pickSize(parseSizes(sizes), width);
   const t = detectTheme(theme);
   const ext = supportsWebm() ? "webm" : "mp4";
-  for (const state of [].concat(states)) {
-    const url = file(clean(src), ALIASES[state] ?? state, t, size, ext);
-    if (blobs.has(url)) continue;
-    blobs.set(url, fetch(url, { priority: "low" })
-      .then((r) => { if (!r.ok) throw warn(`could not prefetch ${url} (${r.status}). Was "${state}" built with: aurb add --states ...?`); return r.blob(); })
-      .then((b) => URL.createObjectURL(b))
-      .catch(() => { blobs.delete(url); return null; }));
-  }
+  for (const state of [].concat(states)) load(file(folder(orb), ALIASES[state] ?? state, t, size, ext), "low").then((u) => u || warn(`${orb}: no ${state}`));
 }

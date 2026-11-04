@@ -5,8 +5,8 @@ export type { AurbErrorDetail, AurbOrb, AurbState } from "./aurb.js";
 
 /** The element's own attributes. */
 export interface AurbAttributes {
-  /** Folder made by `aurb add`. */
-  src: string;
+  /** An orb's name, such as "aurora", a pinned version, such as "aurora@1.0.2", or the URL of a folder you host yourself. */
+  orb: string;
   /** Change it at any time; it crossfades. */
   state?: AurbState | undefined;
   /** Crossfade in ms, optionally per state: "500 thinking:250 error:150". Default 500. */
@@ -20,7 +20,7 @@ export interface AurbAttributes {
   prefetch?: string | undefined;
   /** lazy waits for the page to finish loading. Default lazy. */
   loading?: "lazy" | "eager" | undefined;
-  /** Sizes the folder holds, if you changed them with --sizes. Default "160,320". */
+  /** Tiers the player may choose from: sm, md, lg, xl, or pixel sizes. Default "sm,md,lg". Set one to force it. */
   sizes?: string | undefined;
   /** Playback speed; 1 is normal. */
   speed?: number | string | undefined;

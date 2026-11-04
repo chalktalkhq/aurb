@@ -22,20 +22,20 @@ const made = new AurbOrb();
 void made;
 
 // Prefetching.
-prefetch({ src: "/x", states: ["idle", "thinking"], width: 120 });
-alone({ src: "/x", states: "idle", theme: "dark" });
+prefetch({ orb: "aurora", states: ["idle", "thinking"], width: 120 });
+alone({ orb: "aurora", states: "idle", theme: "dark" });
 
 // Mistakes that must not compile.
 // @ts-expect-error a typo in a state name
 el.state = "thinkin";
 // @ts-expect-error a typo in a state name
 el.flash("sucess");
-// @ts-expect-error src is required
+// @ts-expect-error orb is required
 prefetch({ states: "idle" });
 // @ts-expect-error a typo in a state name
-prefetch({ src: "/x", states: "thinkin" });
+prefetch({ orb: "aurora", states: "thinkin" });
 // @ts-expect-error a typo in a state name
-export const typo: AurbProps = { src: "/x", state: "thinkin" };
+export const typo: AurbProps = { orb: "aurora", state: "thinkin" };
 
 // Custom states extend the type and nothing else.
 declare module "aurb" {
@@ -51,19 +51,19 @@ export function App() {
   const onError = (d: AurbErrorDetail) => console.log(d.url);
   return (
     <>
-      <Aurb src="/x" />
-      <Aurb src="/x" ref={ref} state="thinking" transition="500 thinking:250" hold={100} speed={1.5} static paused={false} loading="eager" theme="auto" surface="none" prefetch="working" sizes="160,320" />
-      <Aurb src="/x" className="a" style={{ width: 120 }} aria-label="Assistant" data-testid="o" id="orb" onClick={() => ref.current?.flash("success")} />
-      <Aurb src="/x" onStateChange={(s) => { const a: AurbState = s; void a; }} onReady={() => {}} onError={onError} />
-      <aurb-orb src="/x" state="idle" static class="b" />
-      {/* @ts-expect-error src is required */}
+      <Aurb orb="aurora" />
+      <Aurb orb="aurora" ref={ref} state="thinking" transition="500 thinking:250" hold={100} speed={1.5} static paused={false} loading="eager" theme="auto" surface="none" prefetch="working" sizes="160,320" />
+      <Aurb orb="aurora" className="a" style={{ width: 120 }} aria-label="Assistant" data-testid="o" id="orb" onClick={() => ref.current?.flash("success")} />
+      <Aurb orb="aurora" onStateChange={(s) => { const a: AurbState = s; void a; }} onReady={() => {}} onError={onError} />
+      <aurb-orb orb="aurora" state="idle" static class="b" />
+      {/* @ts-expect-error orb is required */}
       <Aurb />
       {/* @ts-expect-error a typo in a state name */}
-      <Aurb src="/x" state="thinkin" />
+      <Aurb orb="aurora" state="thinkin" />
       {/* @ts-expect-error an unknown theme */}
-      <Aurb src="/x" theme="blue" />
+      <Aurb orb="aurora" theme="blue" />
       {/* @ts-expect-error a typo in a state name, on the raw element */}
-      <aurb-orb src="/x" state="thinkin" />
+      <aurb-orb orb="aurora" state="thinkin" />
     </>
   );
 }

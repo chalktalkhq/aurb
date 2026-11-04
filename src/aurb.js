@@ -3,7 +3,7 @@
  * can never delay a click. It only ever downloads what is on screen, in the current state, theme,
  * and the smallest size that stays sharp.
  */
-import { ALIASES, blobs, clean, detectTheme, file, parseList, parseSizes, pickSize, prefetch, slowNetwork, supportsWebm, warn } from "./shared.js";
+import { ALIASES, detectTheme, file, folder, load, parseList, parseSizes, pickSize, prefetch, slowNetwork, supportsWebm, warn } from "./shared.js";
 
 export { prefetch };
 
@@ -44,9 +44,9 @@ function watchPage() {
 }
 
 export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
-  static observedAttributes = ["state", "src", "theme", "surface", "paused", "speed", "static"];
+  static observedAttributes = ["state", "orb", "sizes", "theme", "surface", "paused", "speed", "static", "prefetch"];
   #surface; #stack; #videos; #active = null; #shown = null; #shownSrc = null; #token = 0; #busyUntil = 0;
-  #size; #visible = false; #hold; #repaint; #flashBack; #flashTimer; #mp4Only = false; #ready = false;
+  #size; #visible = false; #hold; #repaint; #flashBack; #flashTimer; #mp4Only = false; #ready = false; #queued = false;
 
   constructor() {
     super();
@@ -72,8 +72,17 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
   }
 
   /** Fetch states now, for this orb's size and theme. Defaults to the `prefetch` attribute. */
-  prefetch(states) {
-    prefetch({ src: this.getAttribute("src"), states: states ?? parseList(this.getAttribute("prefetch")), theme: this.getAttribute("theme"), width: this.clientWidth || 120, sizes: this.getAttribute("sizes") });
+  #fetchAhead(states) {
+    prefetch({ orb: this.getAttribute("orb"), states: states ?? parseList(this.getAttribute("prefetch")), theme: this.getAttribute("theme"), width: this.clientWidth || 120, sizes: this.getAttribute("sizes") });
+  }
+  // A method to call and an attribute to set, under one name. React 19 assigns a prop as a property when
+  // the element has one by that name, so a plain method would be replaced by the string.
+  get prefetch() { return this.#fetchAhead; }
+  set prefetch(v) { if (v == null) this.removeAttribute("prefetch"); else this.setAttribute("prefetch", v); }
+
+  // Spare states wait until the page has settled; an orb is never worth slowing first load.
+  #fetchWhenIdle() {
+    (globalThis.requestIdleCallback ?? setTimeout)(() => this.isConnected && this.prefetch(), { timeout: 4000 });
   }
 
   /** Fetch states the moment someone shows intent on an element, such as hovering the send button. */
@@ -91,8 +100,7 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
     io.observe(this);
     ro.observe(this);
     this.refresh();
-    // Spare states wait until the page has settled; an orb is never worth slowing first load.
-    if (this.hasAttribute("prefetch")) (globalThis.requestIdleCallback ?? setTimeout)(() => this.isConnected && this.prefetch(), { timeout: 4000 });
+    if (this.hasAttribute("prefetch")) this.#fetchWhenIdle();
   }
 
   disconnectedCallback() {
@@ -109,7 +117,16 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
     this.#busyUntil = 0;
   }
 
-  attributeChangedCallback(_, a, b) { if (a !== b && this.isConnected) this.refresh(); }
+  attributeChangedCallback(name, a, b) {
+    if (a === b || !this.isConnected) return;
+    if (name === "prefetch") return this.#fetchWhenIdle();
+    // Another orb or tier list may not have the size picked for the old one: the other presets stop at lg.
+    if (name === "orb" || name === "sizes") this.#size = undefined;
+    // Frameworks set several attributes in a row, such as orb then sizes. Act once, on all of them.
+    if (this.#queued) return;
+    this.#queued = true;
+    queueMicrotask(() => { this.#queued = false; this.refresh(); });
+  }
 
   // Called by the shared observers.
   _seen(on) { this.#visible = on; this.refresh(); }
@@ -134,8 +151,9 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
 
   /** Re-read the theme and the colour behind the orb, if your app changes them in a way it can't see. */
   refresh() {
-    const src = clean(this.getAttribute("src"));
-    if (!src) return;
+    const orb = this.getAttribute("orb");
+    if (!orb) return;
+    const src = folder(orb);
     const theme = detectTheme(this.getAttribute("theme"));
     const sizes = parseSizes(this.getAttribute("sizes"));
     if (!this.#size && this.clientWidth) this.#size = pickSize(sizes, this.clientWidth);
@@ -160,6 +178,8 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
     const state = ALIASES[this.state] ?? this.state;
     const url = file(src, state, theme, size, !this.#mp4Only && supportsWebm() ? "webm" : "mp4");
     if (url === this.#shown) return;
+    // aurb/rest can take a change over: solid orbs move through a rest pose instead of crossfading.
+    if (AurbOrb.rest?.(this, url, this.#switch.bind(this))) return;
     // Wait for a fade to finish: the next video takes the element underneath it, and swapping that
     // mid-fade leaves a hole in the picture. The hold also stops fast responses flickering past.
     const wait = this.#busyUntil - Date.now();
@@ -190,7 +210,7 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
 
   // The new video fades in on top of the old, which stays solid, so brightness never dips. Every
   // state shares one body and starts at the same moment in the loop, so it reads as one object.
-  async #switch(url, state) {
+  async #switch(url, state, join) {
     const token = ++this.#token;
     const from = this.#active;
     const to = this.#videos[from === this.#videos[0] ? 1 : 0];
@@ -198,17 +218,19 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
     const done = new AbortController();
     this.#shown = url;
     try {
-      const held = await blobs.get(url);
+      const held = await load(url);
       if (token !== this.#token) return;
+      if (!held) throw new Error("load");
       s.transition = "none";
       s.opacity = 0;
-      to.src = held ?? url;
+      to.src = held;
       await new Promise((res, rej) => {
         to.addEventListener("loadedmetadata", res, { signal: done.signal });
         to.addEventListener("error", () => rej(new Error("load")), { signal: done.signal });
       });
       if (token !== this.#token) return;
-      if (from?.duration && to.duration) to.currentTime = from.currentTime % to.duration;
+      if (join) await join(to, from);
+      else if (from?.duration && to.duration) to.currentTime = from.currentTime % to.duration;
       to.playbackRate = Number(this.getAttribute("speed") ?? 1);
       await to.play();
       await new Promise((res) => (to.requestVideoFrameCallback ? to.requestVideoFrameCallback(res) : setTimeout(res, 50)));
@@ -219,15 +241,16 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
       if (e.name === "NotAllowedError") return this.#emit("aurberror", { state, url, reason: "blocked" });
       // VP9 may be advertised and still fail, so try H.264 once. If that fails too, the file is just
       // missing: VP9 was never the problem, so keep it, and the current picture stays.
-      if (url.endsWith(".webm")) { this.#mp4Only = true; return this.refresh(); }
+      // A rest sheet that fails is a missing file, not a codec: aurb/rest falls back to a crossfade instead.
+      if (!join && url.endsWith("webm")) { this.#mp4Only = true; return this.refresh(); }
       this.#mp4Only = false;
-      warn(`no video at ${url}. Build this state with: aurb add --states ${state}`);
+      warn(`${this.getAttribute("orb")}: no ${state}`);
       return this.#emit("aurberror", { state, url, reason: "missing" });
     } finally {
       done.abort();
     }
     if (token !== this.#token) return;
-    const ms = from ? this.#fadeFor(state) : 350;
+    const ms = join ? 30 : from ? this.#fadeFor(state) : 350; // a join is always onto a matching, held frame
     if (from) from.style.zIndex = 0;
     s.zIndex = 1;
     to.getBoundingClientRect(); // commit the starting opacity before animating it
@@ -245,6 +268,7 @@ export class AurbOrb extends (globalThis.HTMLElement ?? class {}) {
       from.style.transition = "none";
       from.style.opacity = 0;
     }, ms + 40);
+    return 1;
   }
 }
 

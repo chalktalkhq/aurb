@@ -1,5 +1,5 @@
 # Publishing a GitHub release tagged v<version> publishes that version to npm, with provenance, once the tests pass.
-# No token: npm trusts this workflow through Trusted Publishing (set on npmjs.com under aurb, Settings, Trusted
+# No token: npm trusts this workflow through Trusted Publishing (set on npmjs.com under @aurb/player, Settings, Trusted
 # Publisher: GitHub Actions, chalktalkhq/aurb, release.yml). That needs npm 11.5.1 or later.
 name: Release
 on:

@@ -1,4 +1,4 @@
-// `import "aurb/rest"`: lets an orb with transition="rest" move between states through a shared rest pose instead of
+// `import "@aurb/player/rest"`: lets an orb with transition="rest" move between states through a shared rest pose instead of
 // crossfading. For solid orbs whose outline changes, like ferro, where a crossfade would show two sets of spikes at once.
 // The orb's folder must have what the studio renders for it: <state>-out (sinking into the rest pose), rest (the pose
 // itself, a loop), and <state>-in (rising out of it). Kept out of the player, so orbs that don't need it don't pay for it.

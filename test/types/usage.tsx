@@ -1,9 +1,9 @@
 // Compiled with strict settings by `npm test`. @ts-expect-error fails the build if the line stops being
 // an error, so this file also proves that mistakes are caught.
 import { useRef } from "react";
-import { AurbOrb, prefetch, type AurbErrorDetail, type AurbState } from "aurb";
-import { prefetch as alone } from "aurb/prefetch";
-import { Aurb, type AurbProps } from "aurb/react";
+import { AurbOrb, prefetch, type AurbErrorDetail, type AurbState } from "@aurb/player";
+import { prefetch as alone } from "@aurb/player/prefetch";
+import { Aurb, type AurbProps } from "@aurb/player/react";
 
 // The element.
 const el = document.querySelector("aurb-orb")!;
@@ -38,7 +38,7 @@ prefetch({ orb: "aurora", states: "thinkin" });
 export const typo: AurbProps = { orb: "aurora", state: "thinkin" };
 
 // Custom states extend the type and nothing else.
-declare module "aurb" {
+declare module "@aurb/player" {
   interface AurbStates {
     celebrate: true;
   }

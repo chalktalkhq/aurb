@@ -3,11 +3,11 @@
 Animated orbs for AI products. Multi-state, smooth transitions, a 4 KB player, and it never blocks your page.
 
 ```bash
-npm i aurb
+npm i @aurb/player
 ```
 
 ```js
-import "aurb";
+import "@aurb/player";
 ```
 
 ```html
@@ -17,23 +17,23 @@ import "aurb";
 document.querySelector("aurb-orb").state = "thinking"; // it crossfades
 ```
 
-Or with no build step: `<script src="https://cdn.jsdelivr.net/npm/aurb/dist/aurb.global.js" defer></script>`.
+Or with no build step: `<script src="https://cdn.jsdelivr.net/npm/@aurb/player/dist/aurb.global.js" defer></script>`.
 
-There are no files to download, render, or host, and no key. Every orb is free, for any project, including commercial ones. Pick one from [Orbs](#orbs), or run `npx aurb` to browse them, and the player fetches it from jsDelivr, a free public CDN, at the edge nearest your visitor.
+There are no files to download, render, or host, and no key. Every orb is free, for any project, including commercial ones. Pick one from [Orbs](#orbs), or run `npx @aurb/player` to browse them, and the player fetches it from jsDelivr, a free public CDN, at the edge nearest your visitor.
 
-To host the files yourself, run `npx aurb download aurora --out public/orbs` and set `orb` to the folder's URL: `orb="/orbs/aurora"`. If your site only ever shows one theme, add `--theme dark` to save about half the files, and set `theme="dark"` on the element.
+To host the files yourself, run `npx @aurb/player download aurora --out public/orbs` and set `orb` to the folder's URL: `orb="/orbs/aurora"`. If your site only ever shows one theme, add `--theme dark` to save about half the files, and set `theme="dark"` on the element.
 
 ## Command line
 
 ```bash
-npx aurb                   # pick an orb, get its code, copied to your clipboard
-npx aurb add aurora        # the same for one orb: --html, --state thinking, --json
-npx aurb list              # every orb
-npx aurb preview aurora    # play every state in your browser
-npx aurb download aurora   # save the files to host yourself: --theme dark for one theme
+npx @aurb/player                          # pick an orb, get its code, copied to your clipboard
+npx @aurb/player add aurora               # the same for one orb: --html, --state thinking, --json
+npx @aurb/player list                     # every orb
+npx @aurb/player preview aurora           # play every state in your browser
+npx @aurb/player download aurora          # save the files to host yourself: --theme dark for one theme
 ```
 
-To make an orb of your own, `npx aurb pack` turns your loops into one and `npx aurb publish` puts it on npm as your own package. [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs) explains how to get it listed.
+To make an orb of your own, `npx @aurb/player pack` turns your loops into one and `npx @aurb/player publish` puts it on npm as your own package. [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs) explains how to get it listed.
 
 ## How it works, and its limits
 
@@ -75,7 +75,7 @@ orb.prefetchOn(sendButton, "thinking");
 orb.prefetch(["thinking"]);
 
 // On the page before, without shipping the player to it (about 1 KB)
-import { prefetch } from "aurb/prefetch";
+import { prefetch } from "@aurb/player/prefetch";
 prefetch({ orb: "aurora", states: "idle", width: 120 });
 ```
 
@@ -87,9 +87,9 @@ These aren't recolours. Each one has its own material and shape, and moves in it
 
 The value is the orb's name. Each orb is an npm package, `@aurb/<name>`, served by jsDelivr. A name follows the latest 1.x, so an improved render reaches your site within a week without a code change; pin one with `orb="aurora@1.0.2"`.
 
-Some orbs are made in one theme, marked "dark only" in `npx aurb list`; their copied code sets `theme="dark"`, and they play in that theme on any page, so give one a dark panel on a light page.
+Some orbs are made in one theme, marked "dark only" in `npx @aurb/player list`; their copied code sets `theme="dark"`, and they play in that theme on any page, so give one a dark panel on a light page.
 
-Community orbs stay in their maker's own npm package, and the value names it with its exact version: `orb="npm:aurb-orb-nebula@1.0.2"`. Nobody types that: `npx aurb` and the site copy it for you, always at the version that was reviewed, so an update reaches your site only after it is reviewed too. To list one, see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
+Community orbs stay in their maker's own npm package, and the value names it with its exact version: `orb="npm:aurb-orb-nebula@1.0.2"`. Nobody types that: `npx @aurb/player` and the site copy it for you, always at the version that was reviewed, so an update reaches your site only after it is reviewed too. To list one, see [aurb-orbs](https://github.com/chalktalkhq/aurb-orbs).
 
 | `orb` | Character |
 |---|---|
@@ -106,8 +106,8 @@ Community orbs stay in their maker's own npm package, and the value names it wit
 | `moss` | Organic and lumpy. It grows and creeps |
 | `signal` | A body of dots trying to get out. Every state moves its own way |
 | `caustic` | A ball of light with a caustic net through it, like sunlight through moving water |
-| `ferro` | Black chrome ferrofluid with a molten core. Use `transition="rest"` with `import "aurb/rest"` |
-| `mercury` | A drop of liquid silver that turns to gold when it's done. Use `transition="rest"` with `import "aurb/rest"` |
+| `ferro` | Black chrome ferrofluid with a molten core. Use `transition="rest"` with `import "@aurb/player/rest"` |
+| `mercury` | A drop of liquid silver that turns to gold when it's done. Use `transition="rest"` with `import "@aurb/player/rest"` |
 
 ## States
 
@@ -164,8 +164,8 @@ Each playing orb decodes its own video. For a list, keep one or two moving: use 
 ## React
 
 ```tsx
-import { Aurb } from "aurb/react";
-import type { AurbOrb } from "aurb";
+import { Aurb } from "@aurb/player/react";
+import type { AurbOrb } from "@aurb/player";
 
 const ref = useRef<AurbOrb>(null);
 
@@ -186,7 +186,7 @@ Works with React 18 and 19, and is safe to server-render: the size is reserved b
 Types ship with the package. State names are checked, so `state="thinkin"` is a compile error, on the element, the React component, and `prefetch()`. A custom orb with its own states comes with an `aurb-states.d.ts` that adds them:
 
 ```ts
-declare module "aurb" {
+declare module "@aurb/player" {
   interface AurbStates {
     celebrate: true;
   }

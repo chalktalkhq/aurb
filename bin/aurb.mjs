@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// npx aurb: find an orb and get the code for it, preview one, download one to host yourself, or make and publish one.
+// npx @aurb/player: find an orb and get the code for it, preview one, download one to host yourself, or make and publish one.
 // No dependencies, so it starts at once. Menus when a person is at a terminal, plain flags and output everywhere else.
 import { spawnSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -20,6 +20,7 @@ const THEMES = ["dark", "light"];
 const SIZES = [80, 160, 320]; // the player's sm, md and lg: every orb needs these
 const MAX_FILE_KB = 2048, MAX_ORB_MB = 120; // jsDelivr serves packages up to 150 MB; the 640px files are most of an orb
 const NAME = /^[a-z][a-z0-9-]{1,30}$/;
+const RESERVED = ["index", "player"]; // @aurb/index is the list and @aurb/player the player, so no orb can have those names
 const NPM_REF = /^npm:((?:@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*)@(\d+\.\d+\.\d+)$/;
 const FILE = /^[a-z0-9][\w.-]*$/i; // a plain file name: anything with a slash or .. could write outside the folder
 const OUTPUT = /^(poster-(dark|light)|[a-z][\w-]*-(dark|light))-\d+\.(mp4|webm|jpg)$/; // what pack writes
@@ -30,17 +31,17 @@ const bold = paint(1), dim = paint(2), green = paint(32), red = paint(31), cyan 
 
 const HELP = `${bold("aurb")}: animated orbs for AI products
 
-  ${cyan("npx aurb")}                       pick an orb and get its code
-  ${cyan("npx aurb add")} aurora            the code for one orb  ${dim("--html  --state thinking  --json")}
-  ${cyan("npx aurb list")}                  every orb  ${dim("--json")}
-  ${cyan("npx aurb preview")} aurora        play it in your browser, every state  ${dim("--port 4300")}
-  ${cyan("npx aurb download")} aurora       save the files to host yourself  ${dim("--out public/orbs  --theme dark")}
+  ${cyan("npx @aurb/player")}                       pick an orb and get its code
+  ${cyan("npx @aurb/player add")} aurora            the code for one orb  ${dim("--html  --state thinking  --json")}
+  ${cyan("npx @aurb/player list")}                  every orb  ${dim("--json")}
+  ${cyan("npx @aurb/player preview")} aurora        play it in your browser, every state  ${dim("--port 4300")}
+  ${cyan("npx @aurb/player download")} aurora       save the files to host yourself  ${dim("--out public/orbs  --theme dark")}
 
 Making an orb
-  ${cyan("npx aurb pack")} ./loops --name nebula   encode your loops into an orb  ${dim('--note "..."  --xl  --out orbs')}
-  ${cyan("npx aurb preview")} orbs/nebula        try it before you share it
-  ${cyan("npx aurb check")} orbs/nebula          the check a submission runs  ${dim("also npm:aurb-orb-nebula@1.0.0")}
-  ${cyan("npx aurb publish")} orbs/nebula        publish it to npm as your own package  ${dim("--dry-run")}
+  ${cyan("npx @aurb/player pack")} ./loops --name nebula   encode your loops into an orb  ${dim('--note "..."  --xl  --out orbs')}
+  ${cyan("npx @aurb/player preview")} orbs/nebula        try it before you share it
+  ${cyan("npx @aurb/player check")} orbs/nebula          the check a submission runs  ${dim("also npm:aurb-orb-nebula@1.0.0")}
+  ${cyan("npx @aurb/player publish")} orbs/nebula        publish it to npm as your own package  ${dim("--dry-run")}
 
   ./loops holds one seamless, square loop per state and theme, named like idle-dark.mp4 and idle-light.mov:
   ${STATES.join(", ")}; dark on black, light on white, all the same length.
@@ -99,6 +100,7 @@ function manifestProblems(m) {
   const p = [];
   if (!m || typeof m !== "object") return ["manifest.json isn't an object"];
   if (!NAME.test(m.name ?? "")) p.push(`manifest.json name "${m.name}" should be lowercase letters, digits and -`);
+  else if (RESERVED.includes(m.name)) p.push(`"${m.name}" can't be an orb's name; choose another`);
   const themes = m.themes ?? THEMES;
   if (!Array.isArray(themes) || !themes.length || themes.some((t) => !THEMES.includes(t)) || new Set(themes).size !== themes.length) p.push(`manifest.json themes should be ["dark"], ["light"] or ["dark", "light"]`);
   if (!Array.isArray(m.sizes) || m.sizes.some((s) => !Number.isInteger(s) || s < 16 || s > 2048)) p.push("manifest.json sizes should be a list of widths in pixels");
@@ -149,7 +151,7 @@ async function find(name) {
   const orb = orbs.find((o) => o.name === want);
   if (!orb) {
     const near = orbs.filter((o) => o.name[0] === want[0] || o.name.includes(want) || want.includes(o.name)).map((o) => o.name);
-    die(`There's no orb called "${name}".`, near.length ? `Did you mean ${near.join(", ")}? Or run npx aurb list` : "Run npx aurb list to see them all");
+    die(`There's no orb called "${name}".`, near.length ? `Did you mean ${near.join(", ")}? Or run npx @aurb/player list` : "Run npx @aurb/player list to see them all");
   }
   return orb;
 }
@@ -160,11 +162,11 @@ function snippet(orb, { html, state = "idle" }) {
   const rest = orb.fade === "rest", t = single(orb);
   const extra = `${rest ? ' transition="rest"' : ""}${t ? ` theme="${t}"` : ""}`;
   // rest extends the module build, so a solid orb loads the player as modules rather than the global script.
-  const dist = "https://cdn.jsdelivr.net/npm/aurb/dist";
+  const dist = "https://cdn.jsdelivr.net/npm/@aurb/player/dist";
   if (html) return `${rest ? `<script type="module" src="${dist}/aurb.js"></script>\n<script type="module" src="${dist}/rest.js"></script>` : `<script src="${dist}/aurb.global.js" defer></script>`}
 
 <aurb-orb orb="${value(orb)}" state="${state}"${extra} style="width:120px"></aurb-orb>`;
-  return `import { Aurb } from "aurb/react";${rest ? '\nimport "aurb/rest";' : ""}
+  return `import { Aurb } from "@aurb/player/react";${rest ? '\nimport "@aurb/player/rest";' : ""}
 
 <Aurb orb="${value(orb)}" state="${state}"${extra} style={{ width: 120 }} />`;
 }
@@ -179,9 +181,9 @@ function copy(text) {
 function installHint() {
   let pkg;
   try { pkg = JSON.parse(fs.readFileSync("package.json", "utf8")); } catch { return null; }
-  if ({ ...pkg.dependencies, ...pkg.devDependencies }.aurb) return null;
+  if ({ ...pkg.dependencies, ...pkg.devDependencies }["@aurb/player"]) return null;
   const pm = fs.existsSync("pnpm-lock.yaml") ? "pnpm add" : fs.existsSync("yarn.lock") ? "yarn add" : fs.existsSync("bun.lockb") || fs.existsSync("bun.lock") ? "bun add" : "npm i";
-  return `${pm} aurb`;
+  return `${pm} @aurb/player`;
 }
 
 const usesReact = () => {
@@ -197,7 +199,7 @@ function stateOf(args) {
 
 function give(orb, opts) {
   const code = snippet(orb, opts), t = single(orb);
-  if (opts.json) return console.log(JSON.stringify({ ...orb, orb: value(orb), theme: t, code, install: opts.html ? null : "npm i aurb" }, null, 2));
+  if (opts.json) return console.log(JSON.stringify({ ...orb, orb: value(orb), theme: t, code, install: opts.html ? null : "npm i @aurb/player" }, null, 2));
   if (!tty) { console.log(code); if (t) console.error(onlyNote(t)); return; }
   const install = opts.html ? null : installHint();
   const copied = copy(code);
@@ -205,7 +207,7 @@ function give(orb, opts) {
   console.log(copied ? `${green("✓")} Copied to your clipboard.` : dim("Select the code above to copy it."));
   if (t) console.log(yellow(onlyNote(t)));
   if (install) console.log(`${dim("First, in this project:")} ${cyan(install)}`);
-  console.log(dim(`See every state: npx aurb preview ${value(orb)}\n`));
+  console.log(dim(`See every state: npx @aurb/player preview ${value(orb)}\n`));
 }
 
 // ------------------------------------------------------------------ menus
@@ -282,7 +284,7 @@ async function list(args) {
   const width = Math.max(...orbs.map((o) => o.name.length));
   console.log(`${bold(`${orbs.length} orbs`)}, all free\n`);
   for (const o of orbs) console.log(`  ${cyan(o.name.padEnd(width))}  ${o.description ?? ""}${single(o) ? yellow(tag(o)) : ""}${o.author ? dim(`  by ${o.author}`) : ""}`);
-  console.log(dim(`\nnpx aurb add <name> for its code, npx aurb preview <name> to see it`));
+  console.log(dim(`\nnpx @aurb/player add <name> for its code, npx @aurb/player preview <name> to see it`));
 }
 
 async function add(name, args) {
@@ -292,7 +294,7 @@ async function add(name, args) {
 }
 
 async function download(name, args) {
-  if (!name) die("Which orb?", "npx aurb download aurora");
+  if (!name) die("Which orb?", "npx @aurb/player download aurora");
   const orb = await find(name), from = base(orb);
   const manifest = await manifestOf(from, value(orb));
   const has = manifest.themes ?? THEMES;
@@ -326,18 +328,18 @@ async function download(name, args) {
 
 // Serves the player and a page that plays the orb, from a local folder or from the CDN by name.
 async function preview(target, args) {
-  if (!target) die("Which orb?", "npx aurb preview aurora, a folder: npx aurb preview orbs/nebula, or a package: npm:aurb-orb-nebula@1.0.0");
+  if (!target) die("Which orb?", "npx @aurb/player preview aurora, a folder: npx @aurb/player preview orbs/nebula, or a package: npm:aurb-orb-nebula@1.0.0");
   const port = Number(option(args, "port") ?? 4300);
   if (!Number.isInteger(port) || port < 1 || port > 65535) die("--port is a number from 1 to 65535.");
   const local = fs.existsSync(path.join(target, "manifest.json")) ? path.resolve(target) : null;
   let manifest, orb, fade;
   if (local) {
-    try { manifest = JSON.parse(fs.readFileSync(path.join(local, "manifest.json"), "utf8")); } catch { die(`${target}/manifest.json isn't valid JSON.`, "Pack it again with npx aurb pack"); }
+    try { manifest = JSON.parse(fs.readFileSync(path.join(local, "manifest.json"), "utf8")); } catch { die(`${target}/manifest.json isn't valid JSON.`, "Pack it again with npx @aurb/player pack"); }
     const p = manifestProblems(manifest);
-    if (p.length) die(`${target} has a broken manifest.json:\n  ${p.join("\n  ")}`, `npx aurb check ${target} lists everything to fix`);
+    if (p.length) die(`${target} has a broken manifest.json:\n  ${p.join("\n  ")}`, `npx @aurb/player check ${target} lists everything to fix`);
     orb = `http://localhost:${port}/o`;
   } else {
-    if (fs.existsSync(target)) die(`${target} has no manifest.json.`, "Make one with npx aurb pack");
+    if (fs.existsSync(target)) die(`${target} has no manifest.json.`, "Make one with npx @aurb/player pack");
     const found = await find(target);
     fade = found.fade;
     orb = base(found);
@@ -369,7 +371,7 @@ async function preview(target, args) {
     const t = single(manifest);
     console.log(`${green("✓")} ${bold(manifest.name)} at ${cyan(url)}${t ? yellow(`  ${t} only`) : ""}  ${dim("Ctrl+C to stop")}`);
     if (tty && !args["no-open"]) spawn(process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open", process.platform === "win32" ? ["/c", "start", "", url] : [url], { stdio: "ignore", detached: true }).on("error", () => {}).unref();
-  }).on("error", (e) => die(e.code === "EADDRINUSE" ? `Port ${port} is in use.` : e.message, `Try npx aurb preview ${target} --port ${port + 1}`));
+  }).on("error", (e) => die(e.code === "EADDRINUSE" ? `Port ${port} is in use.` : e.message, `Try npx @aurb/player preview ${target} --port ${port + 1}`));
 }
 
 // ------------------------------------------------------------------ making an orb
@@ -395,7 +397,8 @@ const crfFor = (size) => 21 + (size <= 100 ? 5 : size <= 200 ? 2 : size <= 400 ?
 
 async function pack(src, args) {
   const name = String(args.name === true ? "" : args.name ?? "").toLowerCase();
-  if (!src || !NAME.test(name)) die("Pack needs a folder of loops and a name.", "npx aurb pack ./loops --name nebula  (lowercase letters, digits and -)");
+  if (!src || !NAME.test(name)) die("Pack needs a folder of loops and a name.", "npx @aurb/player pack ./loops --name nebula  (lowercase letters, digits and -)");
+  if (RESERVED.includes(name)) die(`"${name}" can't be an orb's name.`, "Choose another with --name");
   if (!fs.existsSync(src) || !fs.statSync(src).isDirectory()) die(`There's no folder ${src}.`, "Point it at the folder holding idle-dark.mp4 and the rest");
   const out = path.resolve(option(args, "out") ?? "orbs", name);
   if (out === path.resolve(src)) die("--out can't be the folder of loops.", "Leave out --out, or choose another folder");
@@ -481,7 +484,7 @@ async function pack(src, args) {
   }
   const rel = path.relative(process.cwd(), out);
   console.log(`\r${green("✓")} Packed ${bold(name)}: ${Object.keys(kb).length} files, ${(Object.values(kb).reduce((a, b) => a + b, 0) / 1024).toFixed(1)} MB in ${rel}`);
-  console.log(`Try it: ${cyan(`npx aurb preview ${rel}`)}, then ${cyan(`npx aurb publish ${rel}`)}`);
+  console.log(`Try it: ${cyan(`npx @aurb/player preview ${rel}`)}, then ${cyan(`npx @aurb/player publish ${rel}`)}`);
 }
 
 // The files of an orb, from a folder or from its npm package on jsDelivr. Fetching every file through jsDelivr also
@@ -508,7 +511,7 @@ async function source(target) {
 
 // What a submission must pass, from a folder or a published package. Every problem is listed at once, each with what to do.
 async function check(targets, { quiet } = {}) {
-  if (!targets.length) die("Which orbs?", "npx aurb check orbs/nebula, or a published one: npx aurb check npm:aurb-orb-nebula@1.0.0");
+  if (!targets.length) die("Which orbs?", "npx @aurb/player check orbs/nebula, or a published one: npx @aurb/player check npm:aurb-orb-nebula@1.0.0");
   let failed = 0, listed;
   for (const target of targets) {
     if (target.startsWith("npm:") && !NPM_REF.test(target)) { failed++; console.log(`${red("✕")} ${bold(target)}\n  needs a package name and an exact version, such as npm:aurb-orb-nebula@1.0.0`); continue; }
@@ -566,7 +569,7 @@ async function check(targets, { quiet } = {}) {
     if (problems.length) { failed++; console.log(`${red("✕")} ${bold(src.label)}\n  ${problems.slice(0, 20).join("\n  ")}${problems.length > 20 ? `\n  and ${problems.length - 20} more` : ""}`); }
     else if (!quiet || notes.length) console.log(`${green("✓")} ${bold(src.label)}  ${dim([`${(total / 1024).toFixed(1)} MB`, ...notes].join(", "))}`);
   }
-  if (failed) die(`${failed} of ${targets.length} not ready.`, "Fix the lines above, then run npx aurb check again");
+  if (failed) die(`${failed} of ${targets.length} not ready.`, "Fix the lines above, then run npx @aurb/player check again");
 }
 
 // npm, with arguments that survive a Windows shell. A publish talks to you directly, so npm can show its sign-in link
@@ -586,7 +589,7 @@ const newer = (a, b) => { for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return 
 // what npm has, unless package.json asks for a higher one, and unchanged files publish nothing. Only the orb's own
 // files are published, from a copy, so the folder never changes.
 async function publish(dir, args) {
-  if (!dir || !fs.existsSync(path.join(dir, "package.json"))) die("Which orb folder?", "npx aurb publish orbs/nebula, after npx aurb pack");
+  if (!dir || !fs.existsSync(path.join(dir, "package.json"))) die("Which orb folder?", "npx @aurb/player publish orbs/nebula, after npx @aurb/player pack");
   await check([dir]);
   const dry = !!args["dry-run"];
   const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
@@ -626,7 +629,7 @@ async function publish(dir, args) {
   }
   console.log(`${green("✓")} Published ${bold(`${pkg.name}@${next}`)}. Anyone can use it now: ${cyan(use(next))}`);
   console.log(dim("jsDelivr can take a minute to see a new version."));
-  if (!pkg.name.startsWith("@aurb/")) console.log(dim(`To list it on the site and in npx aurb, submit npm:${pkg.name}@${next} at ${LIST}`));
+  if (!pkg.name.startsWith("@aurb/")) console.log(dim(`To list it on the site and in npx @aurb/player, submit npm:${pkg.name}@${next} at ${LIST}`));
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -641,8 +644,8 @@ try {
   else if (command === "pack") await pack(target, args);
   else if (command === "check") await check([target, ...more].filter(Boolean));
   else if (command === "publish") await publish(target, args);
-  else if ((NAME.test(command) || NPM_REF.test(command)) && !target) await add(command, args); // npx aurb aurora
-  else die(`Unknown command "${command}".`, "Run npx aurb --help");
+  else if ((NAME.test(command) || NPM_REF.test(command)) && !target) await add(command, args); // npx @aurb/player aurora
+  else die(`Unknown command "${command}".`, "Run npx @aurb/player --help");
 } catch (e) {
   die(`Something went wrong: ${e.message}`, `Please report it, with the command you ran: https://github.com/chalktalkhq/aurb/issues`);
 }

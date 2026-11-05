@@ -163,7 +163,8 @@ function snippet(orb, { html, state = "idle" }) {
   const rest = orb.fade === "rest", t = single(orb);
   const extra = `${rest ? ' transition="rest"' : ""}${t ? ` theme="${t}"` : ""}`;
   // rest extends the module build, so a solid orb loads the player as modules rather than the global script.
-  const dist = "https://cdn.jsdelivr.net/npm/@aurb/player/dist";
+  // Pinned to the major, like orbs follow @1: fixes arrive on their own, a breaking release never does.
+  const dist = "https://cdn.jsdelivr.net/npm/@aurb/player@0/dist";
   if (html) return `${rest ? `<script type="module" src="${dist}/aurb.js"></script>\n<script type="module" src="${dist}/rest.js"></script>` : `<script src="${dist}/aurb.global.js" defer></script>`}
 
 <aurb-orb orb="${value(orb)}" state="${state}"${extra} style="width:120px"></aurb-orb>`;

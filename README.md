@@ -17,7 +17,7 @@ import "@aurb/player";
 document.querySelector("aurb-orb").state = "thinking"; // it crossfades
 ```
 
-Or with no build step: `<script src="https://cdn.jsdelivr.net/npm/@aurb/player/dist/aurb.global.js" defer></script>`.
+Or with no build step: `<script src="https://cdn.jsdelivr.net/npm/@aurb/player@0/dist/aurb.global.js" defer></script>`.
 
 There are no files to download, render, or host, and no key. Every orb is free, for any project, including commercial ones. Pick one from [Orbs](#orbs), or run `npx @aurb/player` to browse them, and the player fetches it from jsDelivr, a free public CDN, at the edge nearest your visitor.
 

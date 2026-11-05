@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/chalktalkhq/aurb/compare/v0.2.0...v0.2.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* pin the copied script tag to @aurb/player@0, and run the workflows on Node 24 actions ([#5](https://github.com/chalktalkhq/aurb/issues/5)) ([a19200c](https://github.com/chalktalkhq/aurb/commit/a19200cff7e73ec378fcc61943eb3d150dbecf21))
+
 ## [0.2.0](https://github.com/chalktalkhq/aurb/compare/v0.1.0...v0.2.0) (2026-11-04)
 
 

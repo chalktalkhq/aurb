@@ -654,10 +654,13 @@ async function publish(dir, args) {
   if (!own) die(`package.json version "${pkg.version}" should be like 1.0.0.`);
   const ships = fs.readdirSync(dir).filter((f) => SHIPS(f) && fs.statSync(path.join(dir, f)).isFile()).sort();
   // An orb's own README wins; without one, a generated README ships, and counts as one of its files.
-  const readme = ships.some((f) => /^readme(\.\w+)?$/i.test(f)) ? null : (v) => orbReadme(pkg, manifest, v);
+  const ownReadme = ships.find((f) => /^readme(\.\w+)?$/i.test(f));
+  const readme = ownReadme ? null : (v) => orbReadme(pkg, manifest, v);
+  // The fingerprint of what ships, with the README always last, generated or a file, so republishing an orb downloaded
+  // from npm, README and all, finds nothing changed (and matches the fingerprints already published).
   const hash = createHash("sha1");
-  for (const f of ships.filter((f) => f !== "package.json")) hash.update(f).update(fs.readFileSync(path.join(dir, f)));
-  if (readme) hash.update("README.md").update(readme("VERSION"));
+  for (const f of ships.filter((f) => f !== "package.json" && f !== ownReadme)) hash.update(f).update(fs.readFileSync(path.join(dir, f)));
+  hash.update(ownReadme ?? "README.md").update(ownReadme ? fs.readFileSync(path.join(dir, ownReadme)) : readme("VERSION"));
   const digest = hash.digest("hex").slice(0, 12);
 
   const view = npm(["view", pkg.name, "version", "aurb.hash", "--json"]);

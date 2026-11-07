@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/chalktalkhq/aurb/compare/v0.2.1...v0.2.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* give every published orb a README ([#7](https://github.com/chalktalkhq/aurb/issues/7)) ([a5ea8e2](https://github.com/chalktalkhq/aurb/commit/a5ea8e237ac67eccbecd5fd468b595db622d1f94))
+
 ## [0.2.1](https://github.com/chalktalkhq/aurb/compare/v0.2.0...v0.2.1) (2026-11-05)
 
 

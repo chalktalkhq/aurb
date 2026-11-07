@@ -1,6 +1,6 @@
 {
   "name": "@aurb/player",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Animated orbs for AI products: multi-state, smooth transitions, under 4 KB, and it never blocks your page.",
   "keywords": [
     "orb",

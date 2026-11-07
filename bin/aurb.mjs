@@ -41,7 +41,7 @@ Making an orb
   ${cyan("npx @aurb/player pack")} ./loops --name nebula   encode your loops into an orb  ${dim('--note "..."  --xl  --out orbs')}
   ${cyan("npx @aurb/player preview")} orbs/nebula        try it before you share it
   ${cyan("npx @aurb/player check")} orbs/nebula          the check a submission runs  ${dim("also npm:aurb-orb-nebula@1.0.0")}
-  ${cyan("npx @aurb/player publish")} orbs/nebula        publish it to npm as your own package  ${dim("--dry-run")}
+  ${cyan("npx @aurb/player publish")} orbs/nebula        publish it to npm as your own package  ${dim("--dry-run  --readme")}
 
   ./loops holds one seamless, square loop per state and theme, named like idle-dark.mp4 and idle-light.mov:
   ${STATES.join(", ")}; dark on black, light on white, all the same length.
@@ -61,7 +61,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (!a.startsWith("--")) { out._.push(a); continue; }
     const eq = a.indexOf("="), k = eq < 0 ? a.slice(2) : a.slice(2, eq), v = eq < 0 ? undefined : a.slice(eq + 1);
-    const flag = ["html", "react", "json", "xl", "help", "no-open", "dry-run"].includes(k); // these never take a value
+    const flag = ["html", "react", "json", "xl", "help", "no-open", "dry-run", "readme"].includes(k); // these never take a value
     out[k] = v ?? (!flag && argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : true);
   }
   return out;
@@ -587,20 +587,77 @@ function npm(args, { talk } = {}) {
 const semver = (v) => /^(\d+)\.(\d+)\.(\d+)$/.exec(v ?? "")?.slice(1).map(Number);
 const newer = (a, b) => { for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i]; return false; };
 
+// The README an orb's npm page shows, written from its manifest and package.json when its folder has none: what it
+// is, a still of it, the exact code to use it, and what it contains. `version` is the version being published; the
+// change check renders it with a placeholder, so an unchanged orb doesn't look changed because its version moved on.
+function orbReadme(pkg, manifest, version) {
+  const ours = pkg.name.startsWith("@aurb/"), themes = manifest.themes ?? THEMES, t = themes.includes("light") ? "light" : themes[0];
+  const orb = { name: manifest.name, fade: pkg.aurb?.fade, themes, ...(ours ? {} : { package: pkg.name, version }) };
+  const title = manifest.name[0].toUpperCase() + manifest.name.slice(1);
+  const kb = manifest.kb ?? {}, first = Math.round((kb[`poster-${t}-160.jpg`] ?? 0) + (kb[`idle-${t}-160.webm`] ?? 0));
+  const see = /^SEE LICEN[CS]E IN (.+)$/i.exec(pkg.license ?? "")?.[1];
+  const licence = ours
+    ? "The [aurb Orb Licence](./LICENSE): use it in anything, commercial products included, without attribution. Don't sell or redistribute the orbs on their own."
+    : see ? `See [${see}](./${see}).` : `${pkg.license}.`;
+  return `# ${title}
+
+${pkg.description}
+
+<p align="center"><img src="${NPM}/${pkg.name}@${ours ? "1" : version}/poster-${t}-320.jpg" width="160" height="160" alt="${title}, at rest"></p>
+
+An orb for [aurb](https://github.com/chalktalkhq/aurb), a 4 KB player for animated orbs in AI products. Its files load from jsDelivr, only the states you use, so there is nothing to host.${themes.length === 1 ? ` It is made for ${t} backgrounds only.` : ""}
+
+## Use it
+
+\`\`\`bash
+npm i @aurb/player
+\`\`\`
+
+\`\`\`jsx
+${snippet(orb, {})}
+\`\`\`
+
+Or with no build step:
+
+\`\`\`html
+${snippet(orb, { html: true })}
+\`\`\`
+
+Set \`state\` to any of its states and it moves between them. To see every one: \`npx @aurb/player preview ${value(orb)}\`
+
+## What's in it
+
+| | |
+|---|---|
+| States | ${[...manifest.states].sort((a, b) => (STATES.indexOf(a) + 1 || 99) - (STATES.indexOf(b) + 1 || 99)).map((x) => `\`${x}\``).join(", ")} |
+| Themes | ${themes.length === 1 ? `${t} only` : "dark and light"} |
+| Sizes | ${manifest.sizes.join(", ")} px |
+| First load at 160 px | ${first} KB (its poster and idle loop) |
+| Changing state | ${orb.fade === "rest" ? 'through a shared rest pose; needs `import "@aurb/player/rest"` and `transition="rest"`' : "a crossfade"} |
+
+## Licence
+
+${licence}${pkg.author ? ` Made by ${typeof pkg.author === "string" ? pkg.author : pkg.author.name}.` : ""}
+`;
+}
+
 // Publishes a packed orb as its own npm package. A version is never edited by hand: changed files go up one patch from
 // what npm has, unless package.json asks for a higher one, and unchanged files publish nothing. Only the orb's own
 // files are published, from a copy, so the folder never changes.
 async function publish(dir, args) {
   if (!dir || !fs.existsSync(path.join(dir, "package.json"))) die("Which orb folder?", "npx @aurb/player publish orbs/nebula, after npx @aurb/player pack");
-  await check([dir]);
   const dry = !!args["dry-run"];
+  await check([dir], { quiet: dry && args.readme }); // a README preview prints only the README
   const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
-  const name = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8")).name;
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8")), name = manifest.name;
   const own = semver(pkg.version);
   if (!own) die(`package.json version "${pkg.version}" should be like 1.0.0.`);
   const ships = fs.readdirSync(dir).filter((f) => SHIPS(f) && fs.statSync(path.join(dir, f)).isFile()).sort();
+  // An orb's own README wins; without one, a generated README ships, and counts as one of its files.
+  const readme = ships.some((f) => /^readme(\.\w+)?$/i.test(f)) ? null : (v) => orbReadme(pkg, manifest, v);
   const hash = createHash("sha1");
   for (const f of ships.filter((f) => f !== "package.json")) hash.update(f).update(fs.readFileSync(path.join(dir, f)));
+  if (readme) hash.update("README.md").update(readme("VERSION"));
   const digest = hash.digest("hex").slice(0, 12);
 
   const view = npm(["view", pkg.name, "version", "aurb.hash", "--json"]);
@@ -615,12 +672,16 @@ async function publish(dir, args) {
   if (version && !latest) die(`npm has ${pkg.name}@${version}, which isn't like 1.0.0.`, "Set a higher version in package.json");
   const bumped = latest && [latest[0], latest[1], latest[2] + 1];
   const next = (!bumped || newer(own, bumped) ? own : bumped).join(".");
-  if (dry) return console.log(`Would publish ${bold(`${pkg.name}@${next}`)}: ${ships.length} files  ${dim(use(next))}`);
+  if (dry) {
+    if (readme && args.readme) return console.log(readme(next));
+    return console.log(`Would publish ${bold(`${pkg.name}@${next}`)}: ${ships.length + (readme ? 1 : 0)} files${readme ? ", with a generated README (see it: --dry-run --readme)" : ""}  ${dim(use(next))}`);
+  }
 
   if (!process.env.GITHUB_ACTIONS && npm(["whoami"]).status) die("You're not logged in to npm.", "Run npm login, then try again");
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "aurb-"));
   try {
     for (const f of ships) fs.copyFileSync(path.join(dir, f), path.join(tmp, f));
+    if (readme) fs.writeFileSync(path.join(tmp, "README.md"), readme(next));
     fs.writeFileSync(path.join(tmp, "package.json"), JSON.stringify({ ...pkg, version: next, aurb: { ...pkg.aurb, hash: digest } }, null, 2));
     console.log(`Publishing ${bold(`${pkg.name}@${next}`)}`);
     const provenance = process.env.GITHUB_ACTIONS && process.env.ACTIONS_ID_TOKEN_REQUEST_URL ? ["--provenance"] : [];

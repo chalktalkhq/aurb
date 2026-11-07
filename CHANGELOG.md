@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/chalktalkhq/aurb/compare/v0.2.2...v0.2.3) (2026-11-07)
+
+
+### Bug Fixes
+
+* republishing an orb that already has its README publishes nothing ([#9](https://github.com/chalktalkhq/aurb/issues/9)) ([b74f465](https://github.com/chalktalkhq/aurb/commit/b74f4659f6e780d27dbab24ea3d20dc6d4b20900))
+
 ## [0.2.2](https://github.com/chalktalkhq/aurb/compare/v0.2.1...v0.2.2) (2026-11-07)
 
 

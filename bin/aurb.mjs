@@ -214,11 +214,38 @@ function give(orb, opts) {
 
 // ------------------------------------------------------------------ menus
 
+// How many columns a styled line takes: colour codes none, East Asian wide characters and emoji two, the rest one.
+const CODES = /\x1b\[[0-9;?]*[A-Za-z]/g;
+const cols = (ch) => {
+  const c = ch.codePointAt(0);
+  return c >= 0x1100 && (c <= 0x115f || (c >= 0x2e80 && c <= 0xa4cf) || (c >= 0xac00 && c <= 0xd7a3) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0xfe30 && c <= 0xfe4f) || (c >= 0xff00 && c <= 0xff60) || (c >= 0xffe0 && c <= 0xffe6) || (c >= 0x1f300 && c <= 0x1faff) || (c >= 0x20000 && c <= 0x3fffd)) ? 2 : 1;
+};
+const textWidth = (line) => [...line.replace(CODES, "")].reduce((w, ch) => w + cols(ch), 0);
+// Cut a styled line to at most `max` columns, keeping its colours, ending in "…" when cut.
+function fit(line, max) {
+  if (textWidth(line) <= max) return line;
+  let out = "", w = 0;
+  for (const [, code, ch] of line.matchAll(/(\x1b\[[0-9;?]*[A-Za-z])|([\s\S])/gu)) {
+    if (code) { out += code; continue; }
+    if (w + cols(ch) > max - 1) break;
+    out += ch;
+    w += cols(ch);
+  }
+  return `${out}…\x1b[0m`;
+}
+
 // One list, arrows to move, typing filters, Enter picks. Esc or Ctrl+C leaves without doing anything.
+// It redraws in place by moving up over what it drew last, so that has to be exactly the rows it took: every line is cut
+// to fit the terminal (one column spare, where Windows' console wraps), and after a resize, which reflows what's on
+// screen, the rows are counted again at the new width.
 function choose(title, items, { label, hint, start = 0 }) {
   return new Promise((resolve) => {
     const out = process.stdout;
-    let at = start, filter = "", drawn = 0;
+    let at = start, filter = "", drawn = [];
+    const up = () => {
+      const w = out.columns || 80, n = drawn.reduce((rows, d) => rows + Math.max(1, Math.ceil(d / w)), 0);
+      return n ? `\x1b[${n}A\r` : "";
+    };
     const shown = () => items.filter((x) => label(x).toLowerCase().includes(filter.toLowerCase()));
     const rows = Math.max(5, Math.min(10, (out.rows || 24) - 6));
     const draw = () => {
@@ -232,14 +259,16 @@ function choose(title, items, { label, hint, start = 0 }) {
       });
       if (!list.length) lines.push(dim("  nothing matches"));
       lines.push(dim(`${list.length > rows ? `${at + 1} of ${list.length}  ` : ""}↑↓ move  enter choose  esc quit`));
-      out.write(`${drawn ? `\x1b[${drawn}A` : ""}\x1b[0J${lines.map((l) => l.slice(0, (out.columns || 80) + 40)).join("\n")}\n`);
-      drawn = lines.length;
+      const fitted = lines.map((l) => fit(l, (out.columns || 80) - 1));
+      out.write(`${up()}\x1b[0J${fitted.join("\n")}\n`);
+      drawn = fitted.map(textWidth);
     };
     const done = (v) => {
       process.stdin.off("keypress", key);
+      out.off("resize", draw);
       process.stdin.setRawMode(false);
       process.stdin.pause();
-      out.write(`\x1b[${drawn}A\x1b[0J\x1b[?25h`);
+      out.write(`${up()}\x1b[0J\x1b[?25h`);
       if (v === undefined) { out.write(dim("Nothing chosen.\n")); process.exit(0); }
       out.write(`${green("✓")} ${title} ${bold(label(v))}\n`);
       resolve(v);
@@ -258,6 +287,7 @@ function choose(title, items, { label, hint, start = 0 }) {
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.on("keypress", key);
+    out.on("resize", draw);
     out.write("\x1b[?25l");
     draw();
   });

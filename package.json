@@ -84,6 +84,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepare": "node scripts/build.mjs",
     "test": "node scripts/build.mjs && tsc -p test/types && node test/browser.mjs",
     "prepublishOnly": "npm test"
   },
@@ -100,9 +101,12 @@
     }
   },
   "devDependencies": {
+    "@clack/core": "^1.5.1",
+    "@clack/prompts": "^1.8.1",
     "@playwright/test": "^1.61.1",
     "@types/react": "^19.0.0",
     "esbuild": "^0.28.2",
+    "fast-string-width": "^3.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.9.0"

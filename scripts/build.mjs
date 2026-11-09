@@ -9,7 +9,7 @@ import { build } from "tsdown";
 const BUDGET = { player: 4096, prefetch: 1100, react: 510, rest: 910 }; // rest: 910 since it holds each sheet on its last frame, so a busy page can never see one wrap round
 
 // Type-check all of it first: tsdown strips types without checking them.
-execFileSync(process.execPath, ["node_modules/typescript/bin/tsc", "-p", "."], { stdio: "inherit" });
+for (const project of [".", "cli"]) execFileSync(process.execPath, ["node_modules/typescript/bin/tsc", "-p", project], { stdio: "inherit" });
 await build({ logLevel: "warn" });
 fs.chmodSync("bin/aurb.mjs", 0o755);
 

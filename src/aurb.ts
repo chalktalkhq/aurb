@@ -69,7 +69,7 @@ function watchPage(): void {
 const Base = (globalThis.HTMLElement ?? class {}) as typeof HTMLElement;
 
 export class AurbOrb extends Base {
-  static observedAttributes = ["state", "orb", "sizes", "theme", "surface", "paused", "speed", "static", "prefetch"];
+  static observedAttributes: string[] = ["state", "orb", "sizes", "theme", "surface", "paused", "speed", "static", "prefetch"];
 
   /**
    * Set by `@aurb/player/rest`, which can take a change of state over. Returns true when it has.

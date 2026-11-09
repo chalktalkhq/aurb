@@ -1,5 +1,6 @@
 {
-  // Type-checks src/ and cli/. tsdown writes the JavaScript and the bundled .d.ts files from the same settings.
+  // Type-checks src/; cli/tsconfig.json extends it for the CLI. tsdown writes the JavaScript, and Oxc the bundled
+  // .d.ts files, which isolated declarations let it do without the TypeScript compiler.
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -8,11 +9,12 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "lib": ["es2022", "dom", "dom.iterable"],
-    "types": ["node"],
+    "types": [],
     "noEmit": true,
     "declaration": true,
     "stripInternal": true,
+    "isolatedDeclarations": true,
     "skipLibCheck": true
   },
-  "include": ["src", "cli"]
+  "include": ["src"]
 }

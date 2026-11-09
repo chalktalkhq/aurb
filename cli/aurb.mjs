@@ -558,6 +558,10 @@ function orbReadme(pkg, manifest, version) {
     : see ? `See [${see}](./${see}).` : `${pkg.license}.`;
   return `# ${title}
 
+[![npm](https://img.shields.io/npm/v/${pkg.name}?color=cb3837&logo=npm)](https://www.npmjs.com/package/${pkg.name})
+[![jsDelivr](https://data.jsdelivr.com/v1/package/npm/${pkg.name}/badge)](https://www.jsdelivr.com/package/npm/${pkg.name})
+[![player](https://img.shields.io/npm/v/@aurb/player?label=%40aurb%2Fplayer&color=6e56cf)](https://www.npmjs.com/package/@aurb/player)
+
 ${pkg.description}
 
 <p align="center"><img src="${NPM}/${pkg.name}@${ours ? "1" : version}/poster-${t}-320.jpg" width="160" height="160" alt="${title}, at rest"></p>

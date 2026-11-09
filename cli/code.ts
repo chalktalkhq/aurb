@@ -1,7 +1,8 @@
 // The code a developer pastes: `add`, `list`, and the picker that runs with no command.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import { ALIASES, STATES, bold, cyan, die, dim, find, green, index, onlyNote, option, projectPackage, single, stop, tty, value, yellow, type Options, type Orb } from "./common.js";
+import { bold, cyan, die, dim, green, option, stop, tty, yellow, type Options } from "./common.js";
+import { ALIASES, find, index, onlyNote, single, STATES, value, type Orb, type PackageJson } from "./orbs.js";
 import { HELP } from "./help.js";
 
 interface SnippetOptions {
@@ -144,4 +145,13 @@ export async function add(name: string | undefined, options: Options): Promise<v
   if (!name) return pick(options);
   const state = stateOf(options);
   give(await find(name), { html: !!options.html, state, json: !!options.json });
+}
+
+/** This project's package.json, or null outside a project. */
+function projectPackage(): PackageJson | null {
+  try {
+    return JSON.parse(fs.readFileSync("package.json", "utf8"));
+  } catch {
+    return null;
+  }
 }

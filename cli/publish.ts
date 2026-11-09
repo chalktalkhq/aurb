@@ -8,7 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import { check } from "./check.js";
 import { snippet } from "./code.js";
-import { LIST, NPM, OFFLINE, STATES, THEMES, bold, cyan, die, dim, green, ships, value, type Manifest, type Options, type Orb, type PackageJson } from "./common.js";
+import { bold, cyan, die, dim, green, OFFLINE, type Options } from "./common.js";
+import { LIST, NPM, ships, STATES, THEMES, value, type Manifest, type Orb, type PackageJson } from "./orbs.js";
 
 /** npm, with arguments that survive a Windows shell. With talk, npm can show its sign-in link or ask for a 2FA code. */
 function npm(args: string[], { talk = false } = {}) {

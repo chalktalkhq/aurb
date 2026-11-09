@@ -1,10 +1,8 @@
 // `check <folder|npm:pkg@x.y.z>`: what a submission must pass. Every problem is listed at once, each with what to do.
 import fs from "node:fs";
 import path from "node:path";
-import {
-  MAX_FILE_KB, MAX_ORB_MB, NAME, NPM, NPM_REF, OFFLINE, THEMES, bold, die, dim, expected, getBytes, green, index, manifestProblems, otherTheme, red, ships,
-  type Manifest, type Orb, type PackageJson,
-} from "./common.js";
+import { bold, die, dim, getBytes, green, OFFLINE, red } from "./common.js";
+import { expected, index, manifestProblems, MAX_FILE_KB, MAX_ORB_MB, NAME, NPM, NPM_REF, otherTheme, ships, THEMES, type Manifest, type Orb, type PackageJson } from "./orbs.js";
 
 /** An orb's files, from a folder or from its npm package on jsDelivr. */
 interface Source {

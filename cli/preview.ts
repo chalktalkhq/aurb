@@ -4,7 +4,8 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { THEMES, base, bold, cyan, die, dim, find, green, manifestOf, manifestProblems, option, single, tty, value, yellow, type Manifest, type Options } from "./common.js";
+import { bold, cyan, die, dim, green, option, tty, yellow, type Options } from "./common.js";
+import { base, find, manifestOf, manifestProblems, single, THEMES, value, type Manifest } from "./orbs.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TYPES: Record<string, string> = { webm: "video/webm", mp4: "video/mp4", jpg: "image/jpeg", js: "text/javascript" };

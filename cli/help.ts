@@ -1,4 +1,5 @@
-import { LIST, STATES, bold, cyan, dim } from "./common.js";
+import { bold, cyan, dim } from "./common.js";
+import { LIST, STATES } from "./orbs.js";
 
 export const HELP = `${bold("aurb")}: animated orbs for AI products
 

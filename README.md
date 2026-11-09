@@ -1,5 +1,11 @@
 # aurb
 
+[![npm](https://img.shields.io/npm/v/@aurb/player?color=cb3837&logo=npm)](https://www.npmjs.com/package/@aurb/player)
+[![size](https://deno.bundlejs.com/badge?q=@aurb/player)](https://bundlejs.com/?q=@aurb/player)
+[![CI](https://github.com/chalktalkhq/aurb/actions/workflows/ci.yml/badge.svg)](https://github.com/chalktalkhq/aurb/actions/workflows/ci.yml)
+[![jsDelivr](https://data.jsdelivr.com/v1/package/npm/@aurb/player/badge)](https://www.jsdelivr.com/package/npm/@aurb/player)
+[![license](https://img.shields.io/npm/l/@aurb/player)](LICENSE)
+
 Animated orbs for AI products. Multi-state, smooth transitions, a 4 KB player, and it never blocks your page.
 
 ```bash

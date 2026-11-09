@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // npx @aurb/player: find an orb and get the code for it, preview one, download one to host yourself, or make and publish one.
-// No dependencies, so it starts at once. Menus when a person is at a terminal, plain flags and output everywhere else.
+// Menus when a person is at a terminal, plain flags and output everywhere else. The build bundles this into bin/aurb.mjs,
+// with the menus' library in a file of their own that loads only when they're shown, so @aurb/player has no dependencies.
 import { spawnSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import readline from "node:readline";
 import { fileURLToPath } from "node:url";
+import { styleText } from "./style.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const NPM = "https://cdn.jsdelivr.net/npm";
@@ -26,8 +27,8 @@ const FILE = /^[a-z0-9][\w.-]*$/i; // a plain file name: anything with a slash o
 const OUTPUT = /^(poster-(dark|light)|[a-z][\w-]*-(dark|light))-\d+\.(mp4|webm|jpg)$/; // what pack writes
 const SHIPS = (f) => OUTPUT.test(f) || ["manifest.json", "package.json"].includes(f) || /^(licen[cs]e|readme)(\.\w+)?$/i.test(f);
 const tty = process.stdout.isTTY && process.stdin.isTTY;
-const paint = (code) => (s) => (process.stdout.isTTY && !process.env.NO_COLOR ? `\x1b[${code}m${s}\x1b[0m` : String(s));
-const bold = paint(1), dim = paint(2), green = paint(32), red = paint(31), cyan = paint(36), yellow = paint(33);
+const paint = (format) => (s) => styleText(format, s);
+const bold = paint("bold"), dim = paint("dim"), green = paint("green"), red = paint("red"), cyan = paint("cyan"), yellow = paint("yellow");
 
 const HELP = `${bold("aurb")}: animated orbs for AI products
 
@@ -209,102 +210,28 @@ function give(orb, opts) {
   console.log(copied ? `${green("✓")} Copied to your clipboard.` : dim("Select the code above to copy it."));
   if (t) console.log(yellow(onlyNote(t)));
   if (install) console.log(`${dim("First, in this project:")} ${cyan(install)}`);
-  console.log(dim(`See every state: npx @aurb/player preview ${value(orb)}\n`));
+  console.log(`${dim("See every state:")} ${cyan(`npx @aurb/player preview ${value(orb)}`)}\n`);
 }
 
 // ------------------------------------------------------------------ menus
-
-// How many columns a styled line takes: colour codes none, East Asian wide characters and emoji two, the rest one.
-const CODES = /\x1b\[[0-9;?]*[A-Za-z]/g;
-const cols = (ch) => {
-  const c = ch.codePointAt(0);
-  return c >= 0x1100 && (c <= 0x115f || (c >= 0x2e80 && c <= 0xa4cf) || (c >= 0xac00 && c <= 0xd7a3) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0xfe30 && c <= 0xfe4f) || (c >= 0xff00 && c <= 0xff60) || (c >= 0xffe0 && c <= 0xffe6) || (c >= 0x1f300 && c <= 0x1faff) || (c >= 0x20000 && c <= 0x3fffd)) ? 2 : 1;
-};
-const textWidth = (line) => [...line.replace(CODES, "")].reduce((w, ch) => w + cols(ch), 0);
-// Cut a styled line to at most `max` columns, keeping its colours, ending in "…" when cut.
-function fit(line, max) {
-  if (textWidth(line) <= max) return line;
-  let out = "", w = 0;
-  for (const [, code, ch] of line.matchAll(/(\x1b\[[0-9;?]*[A-Za-z])|([\s\S])/gu)) {
-    if (code) { out += code; continue; }
-    if (w + cols(ch) > max - 1) break;
-    out += ch;
-    w += cols(ch);
-  }
-  return `${out}…\x1b[0m`;
-}
-
-// One list, arrows to move, typing filters, Enter picks. Esc or Ctrl+C leaves without doing anything.
-// It redraws in place by moving up over what it drew last, so that has to be exactly the rows it took: every line is cut
-// to fit the terminal (one column spare, where Windows' console wraps), and after a resize, which reflows what's on
-// screen, the rows are counted again at the new width.
-function choose(title, items, { label, hint, start = 0 }) {
-  return new Promise((resolve) => {
-    const out = process.stdout;
-    let at = start, filter = "", drawn = [];
-    const up = () => {
-      const w = out.columns || 80, n = drawn.reduce((rows, d) => rows + Math.max(1, Math.ceil(d / w)), 0);
-      return n ? `\x1b[${n}A\r` : "";
-    };
-    const shown = () => items.filter((x) => label(x).toLowerCase().includes(filter.toLowerCase()));
-    const rows = Math.max(5, Math.min(10, (out.rows || 24) - 6));
-    const draw = () => {
-      const list = shown();
-      at = Math.min(at, Math.max(0, list.length - 1));
-      const top = Math.max(0, Math.min(at - Math.floor(rows / 2), list.length - rows));
-      const lines = [`${bold(title)}${filter ? `  ${cyan(filter)}` : dim("  type to filter")}`];
-      list.slice(top, top + rows).forEach((x, i) => {
-        const on = top + i === at;
-        lines.push(`${on ? cyan("›") : " "} ${on ? bold(label(x)) : label(x)}${hint ? `  ${dim(hint(x))}` : ""}`);
-      });
-      if (!list.length) lines.push(dim("  nothing matches"));
-      lines.push(dim(`${list.length > rows ? `${at + 1} of ${list.length}  ` : ""}↑↓ move  enter choose  esc quit`));
-      const fitted = lines.map((l) => fit(l, (out.columns || 80) - 1));
-      out.write(`${up()}\x1b[0J${fitted.join("\n")}\n`);
-      drawn = fitted.map(textWidth);
-    };
-    const done = (v) => {
-      process.stdin.off("keypress", key);
-      out.off("resize", draw);
-      process.stdin.setRawMode(false);
-      process.stdin.pause();
-      out.write(`${up()}\x1b[0J\x1b[?25h`);
-      if (v === undefined) { out.write(dim("Nothing chosen.\n")); process.exit(0); }
-      out.write(`${green("✓")} ${title} ${bold(label(v))}\n`);
-      resolve(v);
-    };
-    const key = (s, k = {}) => {
-      const list = shown();
-      if ((k.ctrl && k.name === "c") || k.name === "escape") return done();
-      if (k.name === "return") return list.length && done(list[at]);
-      if (k.name === "up" || (k.ctrl && k.name === "p")) at = (at - 1 + list.length) % Math.max(1, list.length);
-      else if (k.name === "down" || k.name === "tab" || (k.ctrl && k.name === "n")) at = (at + 1) % Math.max(1, list.length);
-      else if (k.name === "backspace") filter = filter.slice(0, -1);
-      else if (s && /^[\w-]$/.test(s)) { filter += s; at = 0; }
-      draw();
-    };
-    readline.emitKeypressEvents(process.stdin);
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on("keypress", key);
-    out.on("resize", draw);
-    out.write("\x1b[?25l");
-    draw();
-  });
-}
 
 const tag = (o) => (single(o) ? ` [${single(o)} only]` : "");
 
 async function pick(args) {
   if (!tty) return console.log(HELP);
   const state = stateOf(args);
+  const { intro, menu, outro, cancelled } = await import("./menu.mjs");
+  intro();
   const orbs = await index();
   if (!orbs.length) die("No orbs are listed yet.", "Try again later");
-  const width = Math.max(...orbs.map((o) => o.name.length));
-  const orb = await choose("Orb", orbs, { label: (o) => o.name.padEnd(width), hint: (o) => `${o.description ?? ""}${tag(o)}` });
-  const kinds = ["React", "HTML"];
-  const kind = await choose("For", kinds, { label: (k) => k, hint: (k) => (k === "React" ? "a typed component" : "a script tag, no build step"), start: usesReact() || args.react ? 0 : 1 });
-  give(orb, { html: kind === "HTML", state });
+  const choose = async (opts) => (await menu(opts)) ?? (cancelled(), process.exit(0));
+  const orb = await choose({ question: "Choose an orb", answer: "Orb", filter: true, items: orbs.map((o) => ({ value: o, label: o.name, hint: o.description, tag: single(o) && `${single(o)} only` })) });
+  const html = await choose({
+    question: "Use it with", answer: "With", start: usesReact() || args.react ? 0 : 1,
+    items: [{ value: false, label: "React", hint: "a typed component" }, { value: true, label: "HTML", hint: "a script tag, no build step" }],
+  });
+  outro(`${bold(orb.name)} for ${html ? "HTML" : "React"}`);
+  give(orb, { html, state });
 }
 
 // ------------------------------------------------------------------ list, add, download

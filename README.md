@@ -202,6 +202,8 @@ npm test
 
 This builds, fails if the player goes over 4 KB gzip, compiles strict type tests, and checks in a real browser exactly which files download and how the states behave. The browser test plays two small orbs kept in `test/orbs`, so it needs nothing else.
 
+The CLI's source is in `cli/`. The build bundles it into `bin/`, with the library its menus use ([@clack/core](https://github.com/bombshell-dev/clack)) inside, so `@aurb/player` has no dependencies: a site that installs it gets nothing it doesn't use. Run `npm run build`, then `node bin/aurb.mjs`.
+
 ### Releasing
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please). Commits on `main` follow [Conventional Commits](https://www.conventionalcommits.org): `fix:` releases a patch, `feat:` a minor, and `feat!:` or a `BREAKING CHANGE:` footer a major (a minor while the version is below 1.0.0). Pull requests are squash-merged, so their titles are checked for this.

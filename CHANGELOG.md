@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/chalktalkhq/aurb/compare/v0.2.3...v0.3.0) (2026-11-09)
+
+
+### Features
+
+* a professional orb picker on @clack/core, and no more stacked menus ([#11](https://github.com/chalktalkhq/aurb/issues/11)) ([b52e3be](https://github.com/chalktalkhq/aurb/commit/b52e3be4b87c875612fcb92a8f30f174b19779d7))
+
 ## [0.2.3](https://github.com/chalktalkhq/aurb/compare/v0.2.2...v0.2.3) (2026-11-07)
 
 

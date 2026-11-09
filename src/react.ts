@@ -1,5 +1,6 @@
-import type { DetailedHTMLProps, ForwardRefExoticComponent, HTMLAttributes, RefAttributes } from "react";
+import { createElement, forwardRef, useCallback, useEffect, useRef, type DetailedHTMLProps, type ForwardedRef, type HTMLAttributes } from "react";
 import type { AurbErrorDetail, AurbOrb, AurbState } from "./aurb.js";
+import "./aurb.js";
 
 export type { AurbErrorDetail, AurbOrb, AurbState } from "./aurb.js";
 
@@ -39,8 +40,6 @@ export interface AurbProps extends AurbAttributes, Omit<HTMLAttributes<AurbOrb>,
   onError?: ((detail: AurbErrorDetail) => void) | undefined;
 }
 
-export const Aurb: ForwardRefExoticComponent<AurbProps & RefAttributes<AurbOrb>>;
-
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
@@ -48,3 +47,50 @@ declare module "react" {
     }
   }
 }
+
+// Attributes that are on or off. React 18 writes static={false} as static="false", and the element
+// only asks whether the attribute exists, so these have to be left out when false.
+const FLAGS = ["static", "paused"] as const;
+
+/** The orb as a React component. Safe to server-render: the size is reserved before it upgrades. */
+export const Aurb = forwardRef(function Aurb(
+  { className, style, onStateChange, onReady, onError, ...props }: AurbProps,
+  ref: ForwardedRef<AurbOrb>,
+) {
+  const el = useRef<AurbOrb | null>(null);
+  // The latest callbacks, read when an event fires, so a new function each render never re-subscribes.
+  const handlers = useRef<Record<string, (e: CustomEvent) => void>>({});
+  handlers.current = {
+    aurbstatechange: (e) => onStateChange?.(e.detail.state),
+    aurbready: () => onReady?.(),
+    aurberror: (e) => onError?.(e.detail),
+  };
+
+  useEffect(() => {
+    const node = el.current!;
+    const on = (e: Event) => handlers.current[e.type]!(e as CustomEvent);
+    for (const type in handlers.current) node.addEventListener(type, on);
+    return () => {
+      for (const type in handlers.current) node.removeEventListener(type, on);
+    };
+  }, []);
+
+  const setRef = useCallback(
+    (node: AurbOrb | null) => {
+      el.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
+
+  const attrs: Record<string, unknown> = { ...props };
+  for (const flag of FLAGS) {
+    if (attrs[flag]) attrs[flag] = "";
+    else delete attrs[flag];
+  }
+  // The element hides itself from screen readers when it upgrades, which can happen before hydration.
+  // Rendering the same attribute up front keeps server and client HTML identical.
+  if (!attrs.role && !("aria-hidden" in attrs)) attrs["aria-hidden"] = "true";
+  return createElement("aurb-orb", { ...attrs, ref: setRef, class: className, style: { display: "inline-block", aspectRatio: "1", ...style } });
+});

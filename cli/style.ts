@@ -6,16 +6,19 @@ import { inspect } from "node:util";
 export { stripVTControlCharacters } from "node:util";
 
 const env = process.env;
-export const colour = () =>
-  env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== "0" ? true : !!process.stdout.isTTY && !env.NO_COLOR && env.TERM !== "dumb";
+
+export function colour(): boolean {
+  if (env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== "0") return true;
+  return !!process.stdout.isTTY && !env.NO_COLOR && env.TERM !== "dumb";
+}
 
 // The same as Node's: a format such as "cyan", or several, ["bold", "cyan"], each closed with its own code so they nest.
-export function styleText(format, text) {
+export function styleText(format: string | string[], text: string): string {
   let s = String(text);
   if (!colour()) return s;
   for (const f of [format].flat().reverse()) {
-    const c = inspect.colors[f];
-    if (c) s = `\x1b[${c[0]}m${s}\x1b[${c[1]}m`;
+    const codes = inspect.colors[f];
+    if (codes) s = `\x1b[${codes[0]}m${s}\x1b[${codes[1]}m`;
   }
   return s;
 }

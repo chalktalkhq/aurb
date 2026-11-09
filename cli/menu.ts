@@ -5,7 +5,7 @@
 import { AutocompletePrompt, SelectPrompt, isCancel } from "@clack/core";
 import { S_BAR, S_BAR_END, S_BAR_START, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_ERROR, S_STEP_SUBMIT, unicodeOr } from "@clack/prompts";
 import measure from "fast-string-width";
-import { colour, styleText as style } from "./style.mjs";
+import { colour, styleText as style } from "./style.js";
 
 const out = process.stdout;
 const ELLIPSIS = unicodeOr("…", "...");
@@ -15,15 +15,19 @@ const KEYS = unicodeOr("↑↓", "up/down");
 // measured as the library measures before it wraps a line, so a line that fits here is never wrapped there. (Its own
 // truncation is not used: it cuts a character or two late once a line holds symbols such as ↑ or ·.)
 const width = measure;
-export function fit(text, max) {
+export function fit(text: string, max: number): string {
   if (width(text) <= max) return text;
   const room = max - width(ELLIPSIS);
-  let cut = "", w = 0;
+  let cut = "";
+  let w = 0;
   for (const [, code, ch] of text.matchAll(/(\x1b\[[0-9;?]*[A-Za-z])|(\P{M}\p{M}*)/gsu)) {
-    if (code) { cut += code; continue; }
-    if (w + width(ch) > room) break;
+    if (code) {
+      cut += code;
+      continue;
+    }
+    if (w + width(ch!) > room) break;
     cut += ch;
-    w += width(ch);
+    w += width(ch!);
   }
   return `${cut}${ELLIPSIS}${colour() ? "\x1b[0m" : ""}`;
 }
@@ -34,19 +38,30 @@ export function fit(text, max) {
 // terminal rewraps what's on screen, the menu still fits in it: rows pushed off the top could never be redrawn.
 const room = () => Math.min(100, (out.columns || 80) - 1);
 
+/** The library's own drawing internals, which the menus adjust. They're private in its types, so they're described here. */
+interface Drawing {
+  _prevFrame: string;
+  output: NodeJS.WritableStream;
+  cols?: number;
+  restoreCursor(): void;
+  render(): void;
+}
+type PromptClass = new (opts: never) => { prompt(): Promise<unknown> };
+
 // When the window gets narrower, the terminal rewraps the menu already on screen, cutting each line at the edge, character
 // by character. The library counts those rows by wrapping at word breaks instead, which can come to one more for a long
 // line, so it would move up too far and draw over the line above the menu. Here they're counted as the terminal does,
 // and after a change of width the menu is drawn again whole, not just the lines that changed, since a line that used to
 // be longer can now take two rows.
-const rewrapped = (Prompt) =>
-  class extends Prompt {
-    restoreCursor() {
+function rewrapped<C extends PromptClass>(Prompt: C): C {
+  const Base = Prompt as unknown as new (opts: never) => Drawing;
+  return class extends Base {
+    override restoreCursor() {
       const cols = out.columns || 80;
       const rows = this._prevFrame.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil(width(line) / cols)), 0);
       this.output.write(`\x1b[999D${rows > 1 ? `\x1b[${rows - 1}A` : ""}`);
     }
-    render() {
+    override render() {
       if (this._prevFrame && this.cols !== out.columns) {
         this.restoreCursor();
         this.output.write("\x1b[J");
@@ -55,26 +70,53 @@ const rewrapped = (Prompt) =>
       this.cols = out.columns;
       super.render();
     }
-  };
+  } as unknown as C;
+}
 
-export function intro() {
+export function intro(): void {
   const name = colour() ? style(["bgCyan", "black", "bold"], " aurb ") : style("bold", "aurb");
   out.write(`${fit(`${style("gray", S_BAR_START)}  ${name}  ${style("dim", "animated orbs for AI products")}`, room())}\n`);
 }
 
-export function outro(text) {
+export function outro(text: string): void {
   out.write(`${style("gray", S_BAR)}\n${fit(`${style("gray", S_BAR_END)}  ${text}`, room())}\n`);
 }
 
-export function cancelled() {
+export function cancelled(): void {
   out.write(`${style("gray", S_BAR_END)}  ${style("dim", "Cancelled.")}\n`);
 }
 
-// One choice: `items` are { value, label, hint, tag }, each drawn on one line, a description cut short rather than wrapped.
-// With `filter`, typing narrows the list by name. Resolves to the chosen value, or undefined if cancelled.
-export async function menu({ question, answer, items, start = 0, filter = false }) {
+/** One line of a menu. */
+export interface Item<T> {
+  value: T;
+  label: string;
+  hint?: string | undefined;
+  tag?: string | false | null | undefined;
+}
+
+/** What a menu's frame is drawn from: the prompt's own state. */
+interface Frame<T> {
+  state: "initial" | "active" | "cancel" | "submit" | "error";
+  value: unknown;
+  error: string;
+  cursor: number;
+  options: Item<T>[];
+  filteredOptions: Item<T>[];
+  userInput: string;
+  userInputWithCursor: string;
+}
+
+// One choice, each item drawn on one line, a description cut short rather than wrapped. With `filter`, typing narrows
+// the list by name. Resolves to the chosen value, or undefined if cancelled.
+export async function menu<T>({ question, answer, items, start = 0, filter = false }: {
+  question: string;
+  answer: string;
+  items: Item<T>[];
+  start?: number;
+  filter?: boolean;
+}): Promise<T | undefined> {
   const pad = Math.max(...items.map((x) => width(x.label)));
-  const option = (x, on) => {
+  const option = (x: Item<T>, on: boolean) => {
     const dot = on ? style("cyan", S_RADIO_ACTIVE) : style("dim", S_RADIO_INACTIVE);
     const head = `${dot} ${on ? style("bold", x.label) : x.label}${" ".repeat(pad - width(x.label))}`;
     const tag = x.tag ? `  ${style("yellow", x.tag)}` : "";
@@ -83,8 +125,9 @@ export async function menu({ question, answer, items, start = 0, filter = false 
     return `${head}${hint}${tag}`;
   };
 
-  function render() {
-    const bar = style(this.state === "error" ? "yellow" : "cyan", S_BAR), gray = style("gray", S_BAR);
+  function render(this: Frame<T>): string {
+    const bar = style(this.state === "error" ? "yellow" : "cyan", S_BAR);
+    const gray = style("gray", S_BAR);
     const list = filter ? this.filteredOptions : this.options;
     if (this.state === "submit" || this.state === "cancel") {
       const chosen = this.state === "submit" && items.find((x) => x.value === this.value);
@@ -113,15 +156,15 @@ export async function menu({ question, answer, items, start = 0, filter = false 
   }
 
   const options = items.map((x) => ({ ...x }));
-  const value = await (filter
+  const prompt = filter
     ? new (rewrapped(AutocompletePrompt))({
         options,
         initialValue: [options[start]?.value],
-        filter: (q, x) => x.label.toLowerCase().includes(q.trim().toLowerCase()),
-        validate: (v) => (v === undefined ? "Nothing matches. Backspace to change the filter, or esc to cancel." : undefined),
+        filter: (q: string, x: Item<T>) => x.label.toLowerCase().includes(q.trim().toLowerCase()),
+        validate: (v: unknown) => (v === undefined ? "Nothing matches. Backspace to change the filter, or esc to cancel." : undefined),
         render,
-      })
-    : new (rewrapped(SelectPrompt))({ options, initialValue: options[start]?.value, render })
-  ).prompt();
-  return isCancel(value) ? undefined : value;
+      } as never)
+    : new (rewrapped(SelectPrompt))({ options, initialValue: options[start]?.value, render } as never);
+  const value = await prompt.prompt();
+  return isCancel(value) ? undefined : (value as T);
 }

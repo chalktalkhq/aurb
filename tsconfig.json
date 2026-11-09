@@ -1,5 +1,5 @@
 {
-  // Type-checks src/ and writes the published .d.ts files into dist/. esbuild writes the JavaScript.
+  // Type-checks src/ and cli/. tsdown writes the JavaScript and the bundled .d.ts files from the same settings.
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -8,12 +8,11 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "lib": ["es2022", "dom", "dom.iterable"],
-    "types": [],
+    "types": ["node"],
+    "noEmit": true,
     "declaration": true,
-    "emitDeclarationOnly": true,
     "stripInternal": true,
-    "outDir": "dist",
-    "rootDir": "src"
+    "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src", "cli"]
 }

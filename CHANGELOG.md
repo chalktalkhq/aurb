@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.1](https://github.com/chalktalkhq/aurb/compare/v0.3.0...v0.3.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **cli:** exit with the right code on Windows instead of crashing after a network request ([#17](https://github.com/chalktalkhq/aurb/issues/17)) ([8dfd39e](https://github.com/chalktalkhq/aurb/commit/8dfd39ed6f5a62a0f7b1b66ad36f17b53d853dbd))
+
+
+### Documentation
+
+* add badges to the player README and to every generated orb README ([#13](https://github.com/chalktalkhq/aurb/issues/13)) ([4c0a810](https://github.com/chalktalkhq/aurb/commit/4c0a8100c1232a1b6c720e5ab9a5e140fd36d0ec))
+
 ## [0.3.0](https://github.com/chalktalkhq/aurb/compare/v0.2.3...v0.3.0) (2026-11-09)
 
 

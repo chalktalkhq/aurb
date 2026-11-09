@@ -1,7 +1,8 @@
 // The code a developer pastes: `add`, `list`, and the picker that runs with no command.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import { ALIASES, STATES, bold, cyan, die, dim, find, green, index, onlyNote, option, projectPackage, single, stop, tty, value, yellow, type Options, type Orb } from "./common.js";
+import { bold, cyan, die, dim, green, option, stop, tty, yellow, type Options } from "./common.js";
+import { ALIASES, find, index, onlyNote, onlyTheme, STATES, orbAttr, type Orb, type PackageJson } from "./orbs.js";
 import { HELP } from "./help.js";
 
 interface SnippetOptions {
@@ -12,7 +13,7 @@ interface SnippetOptions {
 /** The code for an orb: a React component, or with html, a script tag and the element. */
 export function snippet(orb: Orb, { html, state = "idle" }: SnippetOptions): string {
   const rest = orb.fade === "rest";
-  const theme = single(orb);
+  const theme = onlyTheme(orb);
   const extra = `${rest ? ' transition="rest"' : ""}${theme ? ` theme="${theme}"` : ""}`;
   if (html) {
     // rest extends the module build, so a solid orb loads the player as modules rather than the global script.
@@ -23,11 +24,11 @@ export function snippet(orb: Orb, { html, state = "idle" }: SnippetOptions): str
       : `<script src="${dist}/aurb.global.js" defer></script>`;
     return `${scripts}
 
-<aurb-orb orb="${value(orb)}" state="${state}"${extra} style="width:120px"></aurb-orb>`;
+<aurb-orb orb="${orbAttr(orb)}" state="${state}"${extra} style="width:120px"></aurb-orb>`;
   }
   return `import { Aurb } from "@aurb/player/react";${rest ? '\nimport "@aurb/player/rest";' : ""}
 
-<Aurb orb="${value(orb)}" state="${state}"${extra} style={{ width: 120 }} />`;
+<Aurb orb="${orbAttr(orb)}" state="${state}"${extra} style={{ width: 120 }} />`;
 }
 
 /** Copy to the clipboard with whatever tool this system has. False if none worked. */
@@ -44,19 +45,14 @@ function copy(text: string): boolean {
 
 /** What to run to install the player, in the package manager this project already uses. Null if it has it, or isn't a project. */
 function installHint(): string | null {
-  const pkg = projectPackage();
-  if (!pkg || { ...pkg.dependencies, ...pkg.devDependencies }["@aurb/player"]) return null;
+  const deps = projectDeps();
+  if (!deps || deps["@aurb/player"]) return null;
   const pm =
     fs.existsSync("pnpm-lock.yaml") ? "pnpm add"
     : fs.existsSync("yarn.lock") ? "yarn add"
     : fs.existsSync("bun.lockb") || fs.existsSync("bun.lock") ? "bun add"
     : "npm i";
   return `${pm} @aurb/player`;
-}
-
-function usesReact(): boolean {
-  const pkg = projectPackage();
-  return !!pkg && !!{ ...pkg.dependencies, ...pkg.devDependencies }.react;
 }
 
 /** The --state option, checked: a state or one of its other names. */
@@ -70,9 +66,9 @@ function stateOf(options: Options): string {
 /** Hand over an orb's code: as JSON, plain for a pipe, or copied and explained at a terminal. */
 function give(orb: Orb, opts: SnippetOptions & { json?: boolean | undefined }): void {
   const code = snippet(orb, opts);
-  const theme = single(orb);
+  const theme = onlyTheme(orb);
   if (opts.json) {
-    console.log(JSON.stringify({ ...orb, orb: value(orb), theme, code, install: opts.html ? null : "npm i @aurb/player" }, null, 2));
+    console.log(JSON.stringify({ ...orb, orb: orbAttr(orb), theme, code, install: opts.html ? null : "npm i @aurb/player" }, null, 2));
     return;
   }
   if (!tty) {
@@ -86,7 +82,7 @@ function give(orb: Orb, opts: SnippetOptions & { json?: boolean | undefined }): 
   console.log(copied ? `${green("✓")} Copied to your clipboard.` : dim("Select the code above to copy it."));
   if (theme) console.log(yellow(onlyNote(theme)));
   if (install) console.log(`${dim("First, in this project:")} ${cyan(install)}`);
-  console.log(`${dim("See every state:")} ${cyan(`npx @aurb/player preview ${value(orb)}`)}\n`);
+  console.log(`${dim("See every state:")} ${cyan(`npx @aurb/player preview ${orbAttr(orb)}`)}\n`);
 }
 
 /** No command: choose an orb, then React or HTML, from menus. Help instead, when nobody is at the terminal. */
@@ -109,12 +105,12 @@ export async function pick(options: Options): Promise<void> {
     question: "Choose an orb",
     answer: "Orb",
     filter: true,
-    items: orbs.map((o) => ({ value: o, label: o.name, hint: o.description, tag: single(o) && `${single(o)} only` })),
+    items: orbs.map((o) => ({ value: o, label: o.name, hint: o.description, tag: onlyTheme(o) && `${onlyTheme(o)} only` })),
   });
   const html = await choose({
     question: "Use it with",
     answer: "With",
-    start: usesReact() || options.react ? 0 : 1,
+    start: projectDeps()?.react || options.react ? 0 : 1,
     items: [
       { value: false, label: "React", hint: "a typed component" },
       { value: true, label: "HTML", hint: "a script tag, no build step" },
@@ -133,7 +129,7 @@ export async function list(options: Options): Promise<void> {
   const width = Math.max(...orbs.map((o) => o.name.length));
   console.log(`${bold(`${orbs.length} orbs`)}, all free\n`);
   for (const o of orbs) {
-    const theme = single(o);
+    const theme = onlyTheme(o);
     console.log(`  ${cyan(o.name.padEnd(width))}  ${o.description ?? ""}${theme ? yellow(` [${theme} only]`) : ""}${o.author ? dim(`  by ${o.author}`) : ""}`);
   }
   console.log(dim(`\nnpx @aurb/player add <name> for its code, npx @aurb/player preview <name> to see it`));
@@ -144,4 +140,14 @@ export async function add(name: string | undefined, options: Options): Promise<v
   if (!name) return pick(options);
   const state = stateOf(options);
   give(await find(name), { html: !!options.html, state, json: !!options.json });
+}
+
+/** This project's dependencies, dev ones included, or null outside a project. */
+function projectDeps(): Record<string, string> | null {
+  try {
+    const pkg: PackageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    return { ...pkg.dependencies, ...pkg.devDependencies };
+  } catch {
+    return null;
+  }
 }

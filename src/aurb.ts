@@ -9,9 +9,9 @@ import type { AurbErrorDetail, AurbOrbEventMap, AurbState, Theme } from "./types
 export { prefetch };
 export type { AurbErrorDetail, AurbOrbEventMap, AurbState, AurbStates, PrefetchOptions } from "./types.js";
 
-/** Runs just before a new video is cut in, to line it up with the one showing. */
+/** Runs just before a new video is cut in, to line it up with the one showing. @internal */
 export type Join = (to: HTMLVideoElement, from: HTMLVideoElement | null) => Promise<void>;
-/** Shows a file: resolves to 1 once it's on screen, or undefined when it couldn't be. */
+/** Shows a file: resolves to 1 once it's on screen, or undefined when it couldn't be. @internal */
 export type Show = (url: string, state: string, join?: Join) => Promise<1 | undefined>;
 
 const CSS = `

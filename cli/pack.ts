@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { NAME, OUTPUT, RESERVED, SIZES, STATES, THEMES, bold, cyan, die, dim, green, option, otherTheme, tty, yellow, type Options } from "./common.js";
+import { bold, cyan, die, dim, green, option, tty, yellow, type Options } from "./common.js";
+import { NAME, otherTheme, OUTPUT, RESERVED, SIZES, STATES, THEMES } from "./orbs.js";
 
 /** An ffmpeg that can encode both H.264 and VP9: $FFMPEG, or the one on the PATH. */
 function ffmpeg(): string {

@@ -1,13 +1,14 @@
 // `download <name>`: save an orb's files, to host them yourself.
 import fs from "node:fs";
 import path from "node:path";
-import { OFFLINE, THEMES, base, cyan, die, dim, find, getBytes, green, manifestOf, onlyNote, option, otherTheme, tty, value, yellow, type Options, type Theme } from "./common.js";
+import { cyan, die, dim, getBytes, green, OFFLINE, option, tty, yellow, type Options } from "./common.js";
+import { orbFolder, find, manifestOf, onlyNote, otherTheme, THEMES, orbAttr, type Theme } from "./orbs.js";
 
 export async function download(name: string | undefined, options: Options): Promise<void> {
   if (!name) die("Which orb?", "npx @aurb/player download aurora");
   const orb = await find(name);
-  const from = base(orb);
-  const manifest = await manifestOf(from, value(orb));
+  const from = orbFolder(orb);
+  const manifest = await manifestOf(from, orbAttr(orb));
   const has = manifest.themes ?? THEMES;
 
   // One theme, for a site that only ever shows that one: about half the files. The element must then say so.

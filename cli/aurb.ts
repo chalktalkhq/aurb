@@ -4,9 +4,10 @@
 // with the menus' library in a file of their own that loads only when they're shown, so @aurb/player has no dependencies.
 import { check } from "./check.js";
 import { add, list, pick } from "./code.js";
-import { Exit, NAME, NPM_REF, die, fail, parseArgs } from "./common.js";
+import { die, Exit, fail, parseArgs } from "./common.js";
 import { download } from "./download.js";
 import { HELP } from "./help.js";
+import { NAME, NPM_REF } from "./orbs.js";
 import { pack } from "./pack.js";
 import { preview } from "./preview.js";
 import { publish } from "./publish.js";

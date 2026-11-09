@@ -5,7 +5,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bold, cyan, die, dim, green, option, tty, yellow, type Options } from "./common.js";
-import { base, find, manifestOf, manifestProblems, single, THEMES, value, type Manifest } from "./orbs.js";
+import { orbFolder, find, manifestOf, manifestProblems, onlyTheme, THEMES, orbAttr, type Manifest } from "./orbs.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TYPES: Record<string, string> = { webm: "video/webm", mp4: "video/mp4", jpg: "image/jpeg", js: "text/javascript" };
@@ -45,8 +45,8 @@ export async function preview(target: string | undefined, options: Options): Pro
     if (fs.existsSync(target)) die(`${target} has no manifest.json.`, "Make one with npx @aurb/player pack");
     const found = await find(target);
     fade = found.fade;
-    orb = base(found);
-    manifest = await manifestOf(orb, value(found));
+    orb = orbFolder(found);
+    manifest = await manifestOf(orb, orbAttr(found));
   }
 
   const dist = path.join(here, "..", "dist");
@@ -82,7 +82,7 @@ export async function preview(target: string | undefined, options: Options): Pro
     })
     .listen(port, () => {
       const url = `http://localhost:${port}`;
-      const theme = single(manifest);
+      const theme = onlyTheme(manifest);
       console.log(`${green("✓")} ${bold(manifest.name)} at ${cyan(url)}${theme ? yellow(`  ${theme} only`) : ""}  ${dim("Ctrl+C to stop")}`);
       if (tty && !options["no-open"]) open(url);
     })

@@ -9,7 +9,7 @@ import path from "node:path";
 import { check } from "./check.js";
 import { snippet } from "./code.js";
 import { bold, cyan, die, dim, green, OFFLINE, type Options } from "./common.js";
-import { LIST, NPM, ships, STATES, THEMES, value, type Manifest, type Orb, type PackageJson } from "./orbs.js";
+import { LIST, NPM, ships, STATES, THEMES, orbAttr, type Manifest, type Orb, type PackageJson } from "./orbs.js";
 
 /** npm, with arguments that survive a Windows shell. With talk, npm can show its sign-in link or ask for a 2FA code. */
 function npm(args: string[], { talk = false } = {}) {
@@ -76,7 +76,7 @@ Or with no build step:
 ${snippet(orb, { html: true })}
 \`\`\`
 
-Set \`state\` to any of its states and it moves between them. To see every one: \`npx @aurb/player preview ${value(orb)}\`
+Set \`state\` to any of its states and it moves between them. To see every one: \`npx @aurb/player preview ${orbAttr(orb)}\`
 
 ## What's in it
 

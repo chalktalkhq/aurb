@@ -1,8 +1,9 @@
 // `check <folder|npm:pkg@x.y.z>`: what a submission must pass. Every problem is listed at once, each with what to do.
 import fs from "node:fs";
 import path from "node:path";
+import { folder } from "../src/shared.js";
 import { bold, die, dim, getBytes, green, OFFLINE, red } from "./common.js";
-import { expected, index, manifestProblems, MAX_FILE_KB, MAX_ORB_MB, NAME, NPM, NPM_REF, otherTheme, ships, THEMES, type Manifest, type Orb, type PackageJson } from "./orbs.js";
+import { expected, index, manifestProblems, MAX_FILE_KB, MAX_ORB_MB, NAME, NPM_REF, otherTheme, ships, THEMES, type Manifest, type Orb, type PackageJson } from "./orbs.js";
 
 /** An orb's files, from a folder or from its npm package on jsDelivr. */
 interface Source {
@@ -34,7 +35,7 @@ function source(target: string): Source {
   }
 
   const [, pkg, version] = ref as unknown as [string, string, string];
-  const from = `${NPM}/${pkg}@${version}`;
+  const from = folder(target);
   const cache: Record<string, Buffer | null | undefined> = {};
   const read = async (f: string) => (cache[f] ??= await getBytes(`${from}/${f}`)); // a failure is asked again
   return {
@@ -77,8 +78,10 @@ async function packageProblems(pkg: PackageJson, name: string, manifest: Manifes
   return p;
 }
 
-/** Every file the manifest promises is there, none too big. Returns the orb's size in KB. */
-async function fileProblems(manifest: Manifest, src: Source, problems: string[], notes: string[]): Promise<number> {
+/** Every file the manifest promises is there, none too big, and the orb's size in KB. */
+async function fileProblems(manifest: Manifest, src: Source): Promise<{ problems: string[]; notes: string[]; total: number }> {
+  const problems: string[] = [];
+  const notes: string[] = [];
   const needed = expected(manifest);
   const files = await src.files([...new Set([...needed, ...Object.keys(manifest.kb)])]);
   const unreachable = Object.keys(files).filter((f) => files[f] === undefined);
@@ -99,7 +102,7 @@ async function fileProblems(manifest: Manifest, src: Source, problems: string[],
   }
   if (total / 1024 > MAX_ORB_MB) problems.push(`the orb is ${(total / 1024).toFixed(1)} MB; keep it under ${MAX_ORB_MB} MB`);
   if (has.length === 1) notes.push(`${has[0]} only`);
-  return total;
+  return { problems, notes, total };
 }
 
 export async function check(targets: string[], { quiet = false } = {}): Promise<void> {
@@ -135,7 +138,13 @@ export async function check(targets: string[], { quiet = false } = {}): Promise<
     const manifestOk = manifest && !manifestProblems(manifest).length;
     const name = manifest?.name ?? path.basename(path.resolve(target));
     if (pkg) problems.push(...(await packageProblems(pkg, name, manifest, src)));
-    const total = manifestOk ? await fileProblems(manifest, src, problems, notes) : 0;
+    let total = 0;
+    if (manifestOk) {
+      const files = await fileProblems(manifest, src);
+      problems.push(...files.problems);
+      notes.push(...files.notes);
+      total = files.total;
+    }
     if (src.left?.length) notes.push(`not published: ${src.left.slice(0, 5).join(", ")}${src.left.length > 5 ? ` and ${src.left.length - 5} more` : ""}`);
 
     // A community orb's name must be free, or already this package's. The list is a courtesy when offline.

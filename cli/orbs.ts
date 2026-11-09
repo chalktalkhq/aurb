@@ -1,7 +1,7 @@
 // What an orb is to the CLI: where the list of them is, what its manifest and package.json must hold, and how to find one.
 import fs from "node:fs";
 // The player's own: where orbs live, and the other names for states. Bundled in, so the two never disagree.
-import { ALIASES, NPM } from "../src/shared.js";
+import { ALIASES, NPM, folder } from "../src/shared.js";
 import type { Theme } from "../src/types.js";
 import { OFFLINE, die, getJson } from "./common.js";
 
@@ -70,7 +70,7 @@ export async function index({ soft = false } = {}): Promise<Orb[] | null> {
   } catch {}
   if (Array.isArray(orbs)) {
     // A community entry plays from its package at one exact version: one without both can't be played, so it's left out.
-    return orbs.filter((o: Orb) => o && NAME.test(o.name ?? "") && (!o.package || NPM_REF.test(value(o))));
+    return orbs.filter((o: Orb) => o && NAME.test(o.name ?? "") && (!o.package || NPM_REF.test(orbAttr(o))));
   }
   if (soft) return null;
   die("Couldn't load the list of orbs.", orbs === undefined ? OFFLINE : `${INDEX} isn't a list of orbs. Try again in a minute`);
@@ -80,13 +80,13 @@ export async function index({ soft = false } = {}): Promise<Orb[] | null> {
  * What goes in orb="...": a name for our own @aurb orbs, which follow 1.x, and the exact approved version of a
  * community orb's own package, so nobody gets an update that hasn't been reviewed.
  */
-export const value = (o: Orb): string => (o.package ? `npm:${o.package}@${o.version}` : o.name);
+export const orbAttr = (o: Orb): string => (o.package ? `npm:${o.package}@${o.version}` : o.name);
 
-/** Where its files are on jsDelivr: the same URL the player builds from that value. */
-export const base = (o: Orb): string => (o.package ? `${NPM}/${o.package}@${o.version}` : `${NPM}/@aurb/${o.name}@1`);
+/** Where its files are on jsDelivr: what the player itself fetches for that attribute. */
+export const orbFolder = (o: Orb): string => folder(orbAttr(o));
 
 /** The one theme an orb is made in, or null when it has both. Lists from before themes were recorded have both. */
-export const single = (o: { themes?: Theme[] | undefined }): Theme | null => (o.themes?.length === 1 ? o.themes[0]! : null);
+export const onlyTheme = (o: { themes?: Theme[] | undefined }): Theme | null => (o.themes?.length === 1 ? o.themes[0]! : null);
 
 export const otherTheme = (t: Theme): Theme => (t === "dark" ? "light" : "dark");
 
@@ -160,7 +160,7 @@ export async function find(input: string): Promise<Orb> {
   const ref = NPM_REF.exec(name);
   if (ref) {
     const [, pkgName, version] = ref as unknown as [string, string, string];
-    const from = `${NPM}/${pkgName}@${version}`;
+    const from = folder(name);
     const manifest = await manifestOf(from, `${pkgName}@${version}`);
     const pkg = (await getJson<PackageJson>(`${from}/package.json`)) ?? ({} as Partial<PackageJson>);
     return {

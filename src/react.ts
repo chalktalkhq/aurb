@@ -1,4 +1,4 @@
-import { createElement, forwardRef, useCallback, useEffect, useRef, type DetailedHTMLProps, type ForwardedRef, type HTMLAttributes } from "react";
+import { createElement, forwardRef, useCallback, useEffect, useRef, type ForwardedRef, type HTMLAttributes } from "react";
 import type { AurbErrorDetail, AurbOrb, AurbState } from "./aurb.js";
 import "./aurb.js";
 
@@ -43,7 +43,8 @@ export interface AurbProps extends AurbAttributes, Omit<HTMLAttributes<AurbOrb>,
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      "aurb-orb": DetailedHTMLProps<HTMLAttributes<AurbOrb>, AurbOrb> & AurbAttributes & { class?: string | undefined; static?: boolean | undefined; paused?: boolean | undefined };
+      // Referred to by import(), which the generated .d.ts can always name.
+      "aurb-orb": import("react").DetailedHTMLProps<import("react").HTMLAttributes<AurbOrb>, AurbOrb> & AurbAttributes & { class?: string | undefined; static?: boolean | undefined; paused?: boolean | undefined };
     }
   }
 }

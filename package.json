@@ -84,6 +84,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepare": "node scripts/build.mjs",
     "test": "node scripts/build.mjs && tsc -p test/types && node test/browser.mjs",
     "prepublishOnly": "npm test"
   },

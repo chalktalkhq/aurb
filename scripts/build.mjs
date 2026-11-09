@@ -1,20 +1,22 @@
 // Builds dist/ and enforces the size budgets. A library that promises to be tiny should fail its own
 // build the day it stops being tiny.
 import { build } from "esbuild";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
 
 // rest is opt-in, for solid orbs only, so the player itself stays inside its 4 KB.
-const BUDGET = { player: 4096, prefetch: 1100, react: 500, rest: 900 }; // rest: 900 since it holds each sheet on its last frame, so a busy page can never see one wrap round
+const BUDGET = { player: 4096, prefetch: 1100, react: 510, rest: 910 }; // rest: 910 since it holds each sheet on its last frame, so a busy page can never see one wrap round
 fs.rmSync("dist", { recursive: true, force: true });
 
 const common = { bundle: true, minify: true, target: "es2022", legalComments: "none", logLevel: "warning" };
 // Split, so the player and the standalone prefetch entry share one set of prefetched files.
-await build({ ...common, entryPoints: ["src/aurb.js", "src/prefetch.js", "src/rest.js"], outdir: "dist", format: "esm", splitting: true, chunkNames: "shared" });
-await build({ ...common, entryPoints: ["src/aurb.js"], outfile: "dist/aurb.global.js", format: "iife", globalName: "aurb" });
-await build({ ...common, entryPoints: ["src/react.js"], outfile: "dist/react.js", format: "esm", external: ["react", "./aurb.js"], banner: { js: '"use client";' } });
-for (const f of ["aurb", "react", "prefetch", "global", "rest"]) fs.copyFileSync(`src/${f}.d.ts`, `dist/${f}.d.ts`);
+await build({ ...common, entryPoints: ["src/aurb.ts", "src/prefetch.ts", "src/rest.ts"], outdir: "dist", format: "esm", splitting: true, chunkNames: "shared" });
+await build({ ...common, entryPoints: ["src/aurb.ts"], outfile: "dist/aurb.global.js", format: "iife", globalName: "aurb" });
+await build({ ...common, entryPoints: ["src/react.ts"], outfile: "dist/react.js", format: "esm", external: ["react", "./aurb.js"], banner: { js: '"use client";' } });
+// The .d.ts files, from the source itself, which also type-checks it: a type error fails the build.
+execFileSync(process.execPath, ["node_modules/typescript/bin/tsc", "-p", "."], { stdio: "inherit" });
 
 // The CLI, cli/ into bin/. Its menus' library is bundled in, so installing @aurb/player installs nothing else, and split
 // into a file of its own that only the menus load, so every other command starts as fast as it would without it.

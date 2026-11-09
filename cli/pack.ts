@@ -1,5 +1,5 @@
 // `pack ./loops --name nebula`: encode a folder of loops into an orb, every state, theme and size, ready to publish.
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -152,14 +152,18 @@ export async function pack(src: string | undefined, options: Options): Promise<v
 /** Run the jobs, a few at once, and return each file's size in KB. Stops at the first that fails. */
 async function encode(bin: string, out: string, jobs: Job[]): Promise<Record<string, number>> {
   const kb: Record<string, number> = {};
+  const running = new Set<ChildProcess>();
   let done = 0;
   const run = ([file, args]: Job) =>
     new Promise<void>((resolve, reject) => {
       const p = spawn(bin, ["-y", "-loglevel", "error", ...args, path.join(out, file)]);
+      running.add(p);
       let err = "";
       p.stderr.on("data", (d) => (err += d));
       p.on("error", reject);
-      p.on("close", (code) => {
+      p.on("close", (code, signal) => {
+        running.delete(p);
+        if (signal) return reject(new Error(`ffmpeg stopped on ${file}`));
         if (code) return reject(new Error(`ffmpeg failed on ${file}: ${err.trim().split("\n").slice(-3).join(" ")}`));
         kb[file] = Math.ceil(fs.statSync(path.join(out, file)).size / 1024);
         if (tty) process.stdout.write(`\r${dim(`Encoding ${++done} of ${jobs.length}`)}  `);
@@ -172,6 +176,11 @@ async function encode(bin: string, out: string, jobs: Job[]): Promise<Record<str
     Array.from({ length: workers }, async () => {
       while (queue.length) await run(queue.shift()!);
     }),
-  ).catch((e: Error) => die(e.message, "Fix the loop it names, then pack again"));
+  ).catch((e: Error) => {
+    // One failed: start no more, and stop the others, so the command ends now rather than when they finish.
+    queue.length = 0;
+    for (const p of running) p.kill();
+    die(e.message, "Fix the loop it names, then pack again");
+  });
   return kb;
 }

@@ -47,10 +47,30 @@ export const yellow = paint("yellow");
 
 export const OFFLINE = "Check your connection. Behind a proxy? Set HTTPS_PROXY and NODE_USE_ENV_PROXY=1, which recent Node versions read";
 
-/** Stop with a message, and what to do about it. */
-export function die(message: string, fix?: string): never {
+/** Thrown by stop() to unwind a command from wherever it is. The entry point catches it and does nothing more. */
+export class Exit extends Error {}
+
+/**
+ * End the command with this exit code. Not process.exit(): on Windows, Node can crash inside it shortly after a
+ * fetch, exiting 127 instead (nodejs/node#56645). So the process ends by itself once nothing is left running, and a
+ * timer that doesn't keep it alive ends it anyway in case something still holds it open.
+ */
+export function stop(code: number): never {
+  process.exitCode = code;
+  setTimeout(() => process.exit(), 2000).unref();
+  throw new Exit();
+}
+
+/** Print an error, and what to do about it. */
+export function fail(message: string, fix?: string): void {
   console.error(`${red("✕")} ${message}${fix ? `\n  ${fix}` : ""}`);
-  process.exit(1);
+  process.exitCode = 1;
+}
+
+/** Stop with an error, and what to do about it. */
+export function die(message: string, fix?: string): never {
+  fail(message, fix);
+  stop(1);
 }
 
 // ------------------------------------------------------------------ arguments

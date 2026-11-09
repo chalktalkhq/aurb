@@ -4,12 +4,21 @@
 // with the menus' library in a file of their own that loads only when they're shown, so @aurb/player has no dependencies.
 import { check } from "./check.js";
 import { add, list, pick } from "./code.js";
-import { NAME, NPM_REF, die, parseArgs } from "./common.js";
+import { Exit, NAME, NPM_REF, die, fail, parseArgs } from "./common.js";
 import { download } from "./download.js";
 import { HELP } from "./help.js";
 import { pack } from "./pack.js";
 import { preview } from "./preview.js";
 import { publish } from "./publish.js";
+
+// A command stops by throwing Exit (see stop() in common.ts), which needs nothing more. Anything else is a bug.
+const unexpected = (e: unknown) => {
+  if (e instanceof Exit) return;
+  fail(`Something went wrong: ${(e as Error)?.message ?? e}`, `Please report it, with the command you ran: https://github.com/chalktalkhq/aurb/issues`);
+};
+// For a stop from a callback, such as the preview server's error event, outside the try below.
+process.on("uncaughtException", unexpected);
+process.on("unhandledRejection", unexpected);
 
 const { positional, options } = parseArgs(process.argv.slice(2));
 const [command, target, ...more] = positional;
@@ -27,5 +36,5 @@ try {
   else if ((NAME.test(command) || NPM_REF.test(command)) && !target) await add(command, options); // npx @aurb/player aurora
   else die(`Unknown command "${command}".`, "Run npx @aurb/player --help");
 } catch (e) {
-  die(`Something went wrong: ${(e as Error).message}`, `Please report it, with the command you ran: https://github.com/chalktalkhq/aurb/issues`);
+  unexpected(e);
 }

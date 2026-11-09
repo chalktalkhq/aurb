@@ -1,7 +1,7 @@
 // The code a developer pastes: `add`, `list`, and the picker that runs with no command.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import { ALIASES, STATES, bold, cyan, die, dim, find, green, index, onlyNote, option, projectPackage, single, tty, value, yellow, type Options, type Orb } from "./common.js";
+import { ALIASES, STATES, bold, cyan, die, dim, find, green, index, onlyNote, option, projectPackage, single, stop, tty, value, yellow, type Options, type Orb } from "./common.js";
 import { HELP } from "./help.js";
 
 interface SnippetOptions {
@@ -101,7 +101,7 @@ export async function pick(options: Options): Promise<void> {
     const chosen = await menu(opts);
     if (chosen === undefined) {
       cancelled();
-      process.exit(0);
+      stop(0);
     }
     return chosen;
   };

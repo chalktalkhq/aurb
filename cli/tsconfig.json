@@ -1,0 +1,6 @@
+{
+  // The CLI ships no types, so it needs no isolated declarations.
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "isolatedDeclarations": false, "types": ["node"] },
+  "include": ["."]
+}

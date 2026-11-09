@@ -1,4 +1,4 @@
-import { createElement, forwardRef, useCallback, useEffect, useRef, type ForwardedRef, type HTMLAttributes } from "react";
+import { createElement, forwardRef, useCallback, useEffect, useRef, type ForwardedRef, type ForwardRefExoticComponent, type HTMLAttributes, type RefAttributes } from "react";
 import type { AurbErrorDetail, AurbOrb, AurbState } from "./aurb.js";
 import "./aurb.js";
 
@@ -54,7 +54,7 @@ declare module "react" {
 const FLAGS = ["static", "paused"] as const;
 
 /** The orb as a React component. Safe to server-render: the size is reserved before it upgrades. */
-export const Aurb = forwardRef(function Aurb(
+export const Aurb: ForwardRefExoticComponent<AurbProps & RefAttributes<AurbOrb>> = forwardRef(function Aurb(
   { className, style, onStateChange, onReady, onError, ...props }: AurbProps,
   ref: ForwardedRef<AurbOrb>,
 ) {
